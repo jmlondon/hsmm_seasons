@@ -76,7 +76,7 @@ locs <- dplyr::filter(kotzeb0912_locs,instr=="Mk10") %>%
 # speedfilter using the paralell package for multi-core speed
 cfilter<-mclapply(split(locs,locs$deployid),function(x) sdafilter(
   lat=x$latitude, lon=x$longitude, dtime=x$unique_posix,
-  lc=x$quality, ang=-1,vmax=5),mc.preschedule=F,mc.cores=3)
+  lc=x$quality, ang=-1,vmax=3.5),mc.preschedule=F,mc.cores=3)
 cfilter<-do.call("c",cfilter)
 cfilter<-as.vector(cfilter)
 locs$filtered <- cfilter
