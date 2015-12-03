@@ -19,12 +19,12 @@ B0 = list(
   p = rep(0.1, J),
   lambda = rep(20, J), 
   mu = rep(list(c(0,0)), J),
-  sigma = rep(list(50*diag(2)), J)
+  sigma = rep(list(20*diag(2)), J)
 )
 P0 = exp(-abs(row(diag(J)) - col(diag(J))))
 diag(P0) = 0
 P0 = sweep(P0, 1, rowSums(P0), "/")
-S0 = list(lambda=rep(100, J), shift=rep(0,J), type="poisson")
+S0 = list(lambda=rep(100, J), shift=rep(200,J), type="poisson")
 
 start_val = hsmmspec(
   init = init0, 
@@ -75,4 +75,14 @@ summary(fit)
 predData$state = predict(fit, data)$s
 
 library(ggplot2)
-ggplot(data=predData) + geom_path(aes(y=state, x=datadatetime)) + facet_wrap(~deployid, ncol=1)
+ggplot(data=predData,aes(x=deploy_day,y="")) + geom_tile(aes(fill=as.factor(state))) + facet_wrap(~deployid, ncol=1)
+
+y <- predData %>% 
+  group_by(deploy_day,state) %>% 
+  summarise(counter = n()) %>% 
+  group_by(deploy_day) %>% 
+  filter(counter == max(counter))
+y <- y[!duplicated(y$a),]
+y <- y$counter <- NULL
+
+ggplot(data=y,aes(x=deploy_day,y="")) + geom_tile(aes(fill=as.factor(state),alpha=counter/7)) + facet_wrap(~deployid, ncol=1)
