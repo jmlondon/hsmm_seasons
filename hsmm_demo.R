@@ -82,7 +82,6 @@ y <- predData %>%
   summarise(counter = n()) %>% 
   group_by(deploy_day) %>% 
   filter(counter == max(counter))
-y <- y[!duplicated(y$a),]
-y <- y$counter <- NULL
 
-ggplot(data=y,aes(x=deploy_day,y="")) + geom_tile(aes(fill=as.factor(state),alpha=counter/7)) + facet_wrap(~deployid, ncol=1)
+
+ggplot(data=y,aes(x=deploy_day,y="")) + geom_tile(aes(fill=as.factor(state),alpha=counter/7))

@@ -11,6 +11,10 @@ author:
   affiliation: 1
 - name: Brett T. McClintock
   affiliation: 1
+- name: Michael F. Cameron
+  affiliation: 1
+- name: Peter L. Boveng
+  affiliation: 1
 address:
 - code: 1
   address: Alaska Fisheries Science Center, NOAA Fisheries, Seattle, Washington, United States 
@@ -22,7 +26,7 @@ disclaimer: >
   expressed herein, are those of the author(s) and do not necessarily reflect 
   those of NOAA or the Department of Commerce.
 abstract: >
-  The seasonal timing of key, annual life history events is an important component of many species' ecology. Seasonal periods important to marine mammals often do not align well with typical labels (i.e., spring, summer, winter, fall). The timing of key life history events is well documented only for species found in accessible rookeries or breeding areas. Our knowledge of seasonal timing for species widely dispersed in inaccessible or remote habitats is poor. Here, we employed data from biologging sensors and new statistical modeling to identify and estimate timing of seasonal states for ribbon (n=82) and spotted seals (n=46) in the Bering Sea. These seals are reliant on the seasonal sea ice for pupping, nursing, breeding and molting and these seasons can be characterized by more time spent hauled out on ice and by changes in dive behavior. We are especially interested in the pupping-breeding-molting season, but also used this approach to identify seasonal structure in the non-breeding period. Seasonal periods were treated as separate behavior states that correspond to a hidden Markov process. Hidden Markov models (HMM) are commonly used to estimate behavior states (e.g., foraging, resting, transit) from telemetry data. Typical HMMs, however, have no temporal memory of state assignments and would likely not capture seasonal level states. To address this, we applied a new approximation to a hidden semi-Markov model and specified the transition matrix for the states to mimic the sequential timing of seasons. Dive and haul-out behavior from biologgers were used to estimate these states. The timing and extent of sea ice in the Bering Sea is predicted to change dramatically over the next 50 years and we anticipate ribbon and spotted seals might adjust the timing of these life history events in response to those changes.
+  The seasonal timing of key, annual life history events is an important component of many species' ecology. Seasonal periods important to marine mammals often do not align well with typical labels (i.e., spring, summer, winter, fall). The timing of key life history events is well documented only for species found in accessible rookeries or breeding areas. Our knowledge of seasonal timing for species widely dispersed in inaccessible or remote habitats is poor. Here, we employed data from biologging sensors and new statistical modeling to identify and estimate timing of seasonal states for bearded seals (n=7) captured in Kotzebue Sound, Alaska. These animals provide an initial, small dataset we can work with before exapnding to include ribbon (n=82) and spotted seals (n=46) in future interations. Each of these seals is reliant on the seasonal sea ice for pupping, nursing, breeding and molting and these seasons can be characterized by more time spent hauled out on ice, by changes in dive behavior, and by changes in large-scale movement. We are especially interested in the pupping-breeding-molting season, but also use this approach to identify seasonal structure in the non-breeding period. Seasonal periods were treated as separate behavior states that correspond to a hidden Markov process. Hidden Markov models (HMM) are commonly used to estimate behavior states (e.g., foraging, resting, transit) from telemetry data. Typical HMMs, however, have no temporal memory of state assignments and would likely not capture seasonal level states. To address this, we applied a new approximation to a hidden semi-Markov model and specified the transition matrix for the states to mimic the sequential timing of seasons. Dive and haul-out behavior from biologgers were used to estimate these states. The timing and extent of sea ice in the Bering Sea is predicted to change dramatically over the next 50 years and we anticipate bearded, ribbon, and spotted seals might adjust the timing of these life history events in response to those changes.
 
 output:
   html_document:
@@ -41,16 +45,14 @@ opts_chunk$set(dev="png",
 
 ## Introduction
 
-Since 2006, over 128 ribbon and spotted seals have been captured and outfitted with bio-logging devices that measure hourly wet/dry proportions. In addition, seven adult bearded seals were released with bio-logging devices. The critical life history events are all associated with increased haul-out behavior. Hidden Markov models require a geometrically distributed sojourn time in a given state. Hidden semi-Markov models allow an arbitrary sojourn distribution. In other words, the Hidden semi-Markov approach allows for estimation of states that persist longer than the observation interval. O’Connell et al (2010) applied Hidden semi-Markov models to the estrus detection in dairy cows and developed the mhsmm library for R to support similar analyses.
-
-We expect ribbon seals to have at least 3 distinct annual states: an open water or pelagic period characterized by limited to no haul-out behavior, pupping/breeding/molting period characterized by increased haul-out frequency and duration, a transition period leading up to the pupping/breeding/molting period with increasing haul-out behavior as sea ice forms and stabilizes within the Bering Sea. These periods are generally known to correspond to July-November, April-June and December-March, but the specifics are unknown. Spotted seals should mirror some of these patterns although the open water period will be likely replaced with a near-shore period. BeardedWhile, initially, the focus will be on a single observation channel (proportion dry per hour), a multivariate approach would allow inclusion of dive behavior. Additionally, we would expect variability between age and sex classes and for key covariates (e.g. sea-ice concentration or distance to sea-ice edge) to influence state assignment.
+Since 2006, over 128 ribbon and spotted seals have been captured and outfitted with bio-logging devices that measure hourly wet/dry proportions. In addition, seven adult bearded seals were released with bio-logging devices. The critical life history events of these seals are all associated with increased haul-out behavior and changes in dive behavior. Additionally, migratory-like movements are also key indications of seasonal states. Hidden Markov models require a geometrically distributed sojourn time in a given state. Hidden semi-Markov models allow an arbitrary sojourn distribution --- the duration an animal spends in a state can depend on the time it has already spent in that state. O’Connell et al (2010) applied Hidden semi-Markov models to the estrus detection in dairy cows and developed the `mhsmm` library for R to support similar analyses.
 
 
 ## Methods and Analysis
 
-We will start by loading the bearded seal data from the `kotzeb0912` package along with other packages we'll need for the data munging and analysis.
+We will start by loading the bearded seal data from the `kotzeb0912` package along with other packages we'll need for the data munging and analysis. Data within this package have been processed through the Wildlife Computers Data Portal and additionally munged for more efficient incorporation into analyses like this.
 
-```{r load-eb-data}
+```{r load-eb-data, include=FALSE}
 library(kotzeb0912)
 library(sp)
 library(rgdal)
@@ -100,6 +102,7 @@ data <- data %>% bind_rows(kotzeb0912_gps) %>%
   arrange(deployid,unique_posix)
 ```
 
+The specifications for the movement model are fairly straightforward. Note we are using the development version of `crawl` and incorporating the error ellipse structure. The GPS locations were all given a fixed error of 50m.
 
 ```{r crawl-model, results='hide'}
 data <- as.data.frame(data)
@@ -187,14 +190,14 @@ predData$predTimes <- intToPOSIX(predData$TimeNum)
 
 The haul-out behavior timelines are provided as hour percent-dry values. We want to group these values into 6-hour blocks that are centered on our 6-hourly predictions. To accomplish this, we will setup a grouping column that assigns a unique integer to each 6 hour period.
 
-```{r load-timelines}
+```{r load-timelines, include=FALSE}
 data(kotzeb0912_timelines)
 
 kotzeb0912_timelines <- kotzeb0912_timelines %>% 
   filter(deployid %in% unique(predData$deployid))
 ```
 
-```{r create-6hr-groups}
+```{r create-6hr-groups, include=FALSE}
 ids <- unique(kotzeb0912_timelines$deployid)
 timelineData <- foreach(i = 1:length(ids)) %dopar% {
   t_dat <- kotzeb0912_timelines %>% 
@@ -218,7 +221,7 @@ timelineData <- dplyr::bind_rows(timelineData) %>%
   select(deployid,datadatetime,percent_dry)
 ```
 
-```{r merge-timeline-with-locs}
+```{r merge-timeline-with-locs, include=FALSE}
 predData <- dplyr::inner_join(predData,
                               timelineData,
                               by = c("predTimes" = "datadatetime", 
@@ -231,14 +234,13 @@ predData <- dplyr::inner_join(predData,
 
 ### Merge predicted locations with dive behavior
 
-Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, we will sum the number of dives across all bins less than 10m. This should represent the most likely number of foraging dives over a 6 hour period.
+Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, we will sum the number of dives across all bins less than 10m. This should represent the most likely number of foraging dives over a 6 hour period. Future analysis may consider using time-at-depth instead of number of dives.
 
 ```{r load-dive-depths}
 data(kotzeb0912_depths)
 
 diveData <- kotzeb0912_depths %>% 
   filter(limits != "10.000000") %>% 
-  filter(num_dives < 80) %>% 
   mutate(datadatetime = datadatetime + lubridate::hours(3)) %>% 
   group_by(deployid,datadatetime) %>% 
   summarise(num_dives=sum(num_dives,na.rm=TRUE))
@@ -251,7 +253,7 @@ predData <- dplyr::left_join(predData,
 
 ### Calculate x and y displacement for each step
 
-We'll use the dplyr::lag() function to calculate the difference in x and y when compared with the previous x and y values. This will give us a measure of northing and easting movement.
+We'll use the dplyr::lag() function to calculate the difference in x and y when compared with the previous x and y values. This will give us a measure of northing and easting displacement at each time step. These values will form the basis for our xy-displacement multi-variate normal parameter in the model.
 
 ```{r xy-displacement}
 predData <- predData %>% 
@@ -262,7 +264,7 @@ predData <- predData %>%
   filter(!is.na(x_disp) | !is.na(y_disp))
 ```
 
-and the we can use a custom function to calculate the compass bearing between those two points
+We can use a custom function to calculate the compass bearing between those two points. Compass bearing provides a more user friendly description of movement compared to x/y displacement.
 
 ```{r compass-bearing}
 anglefun <- function(xx,yy,bearing=TRUE,as.deg=FALSE){
@@ -291,25 +293,9 @@ predData <- predData %>%
   mutate(bearing = anglefun(x_disp,y_disp,as.deg=TRUE))
 ```
 
-### Add Day-of-Year and Deployment-Day for aligning deployments
+### Add deploy_day for aligning deployments
 
-Since these deployments occurred over multiple years, we will want a convenient way to align the deployments. The simplest way to do this is to use day-of-year integers and pick start/end values that provide a sensible amount of overlap between the 7 deployments.
-
-First, we'll look at the start dates for each deployment
-
-```{r deploy-starts}
-predData %>% group_by(deployid) %>% 
-  filter(row_number(datadatetime) == 1)
-```
-
-And, now, we'll look at the end dates for each deployment
-
-```{r deploy-end}
-predData %>% group_by(deployid) %>% 
-  filter(row_number(datadatetime) == max(row_number(datadatetime)))
-```
-
-From this information is seems sensible to have all of the deployments start on 05 July (186th day of the year). 
+Since these deployments occurred over multiple years, we will want a convenient way to align the deployments. The simplest way to do this is to use day-of-year integers and add 365 to days in January-May. At this point, we will also do some additional filtering to make sure we don't have any corrupt or other outlier parameters from the tag data.
 
 ```{r limit-by-doy}
 predData <- predData %>% 
@@ -318,43 +304,192 @@ predData <- predData %>%
                         lubridate::hour(datadatetime)/24,
                       lubridate::yday(datadatetime) +
                         lubridate::hour(datadatetime)/24)) %>% 
-  mutate(corrupt = ifelse(deployid == "EB2009_3001_06A1332" & 
-                            datadatetime > lubridate::ymd_hms("2010-01-28 03:00:00"),
-                          TRUE,FALSE
-                          )) %>% 
-  filter(abs(y_disp) < 100000, abs(x_disp) < 100000) %>% 
-  filter(!corrupt)
+  mutate(num_dives = ifelse(deployid == "EB2009_3001_06A1332" & 
+              datadatetime > lubridate::ymd_hms("2010-01-28 03:00:00"),
+              NA,num_dives),
+         ho_binary=ifelse(percent_dry>=33.3,1,-1)) %>% 
+  mutate(y_disp = ifelse(abs(y_disp) > 100000,NA,y_disp ),
+         x_disp = ifelse(abs(x_disp) > 100000,NA,x_disp)) %>% 
+  mutate(num_dives = ifelse(num_dives>150 | is.na(num_dives),NA,num_dives)) 
 
 save(predData,file='predData.rda')
 ```
 
-```{r plot-1, fig.height = 9}
+We now present a series of four plots showing the raw, 'observed' parameter values that will go into the model: haul-out status, number of dives, y-displacement, and x-displacement.
+
+```{r plot-1, fig.height = 8,echo=FALSE}
 library(ggplot2)
 library(uswebr)
 
-p1 <- ggplot(predData, aes(x=deploy_day, y=percent_dry)) + geom_point(alpha=0.2) + facet_grid(deployid ~ .) + 
+p1 <- ggplot(predData, aes(x=deploy_day, y=ho_binary)) + 
+  geom_point(alpha=0.2) + facet_grid(deployid ~ .) + 
+  ggtitle("haul-out status") +
   usweb_theme()
 p1
 ```
 
-```{r plot-2, fig.height = 9}
+```{r plot-2, fig.height = 8,echo=FALSE}
 p2 <- ggplot(predData, aes(x=deploy_day, y=num_dives)) + 
   geom_point(alpha=0.2) + facet_grid(deployid ~ .) + 
+  ggtitle("number of dives below 10m") +
   usweb_theme()
 p2
 ```
 
-```{r plot-3, fig.height = 9}
+```{r plot-3, fig.height = 8, echo=FALSE}
 predData <- predData %>% mutate(direction = ifelse(
   y_disp >= 0, "north","south"))
 
 ggplot(predData,aes(x=deploy_day, y=y_disp/1000)) +
   geom_bar(aes(color=factor(direction)),alpha=0.2,stat="identity") +
-  facet_grid(deployid ~ .) + usweb_theme()
+  facet_grid(deployid ~ .) + 
+  ggtitle("y displacement") +
+  usweb_theme()
+```
+
+```{r plot-4, fig.height = 8,echo=FALSE}
+predData <- predData %>% mutate(direction = ifelse(
+  y_disp >= 0, "west","east"))
+
+ggplot(predData,aes(x=deploy_day, y=x_disp/1000)) +
+  geom_bar(aes(color=factor(direction)),alpha=0.2,stat="identity") +
+  facet_grid(deployid ~ .) + 
+  ggtitle("x displacement") +
+  usweb_theme()
+```
+
+### multivariate semi-hidden markov
+
+We are going to use the mshmm package to run our multi-variate semi-hidden markov model. For the model, we will use 6-hour time steps and the following parameters:
+
+#. haul-out status (Bernouli; cuttoff at 33.3% dry)
+#. number of dives below 10m (Poisson)
+#. x-y displacement (multi-variate normal)
+
+```{r mshmm-start}
+library(mhsmm)
+
+id = levels(factor(predData$deployid))
+predData$ind_dry = ifelse(predData$percent_dry>100/3, 1, 0)
+predData$y_disp_km = predData$y_disp/1000
+predData$x_disp_km = predData$x_disp/1000
+
+tmp1 = predData#[predData$deployid==id[1],]
+
+### MHSMM functions
+source("mhsmm_functions.R")
+```
+
+After loading the package and doing a little bit of data cleaning, we need to setup the initial values and parameters. Initial investigation and model comparison with AIC suggests that 4 states provides the best model.
+
+```{r mshmm-init}
+# Number of states
+J = 4
+
+# Initial vals
+init0 = rep(1/J, J)
+B0 = list(
+  p = c(0.05,0.05,0.07,0.1),
+  lambda = rep(30, J), 
+  mu = rep(list(c(0,0)), J),
+  sigma = rep(list(20*diag(2)), J)
+)
+P0 = exp(-abs(row(diag(J)) - col(diag(J))))
+diag(P0) = 0
+P0 = sweep(P0, 1, rowSums(P0), "/")
+S0 = list(lambda=rep(125, J), shift=rep(200,J), type="poisson")
+
+start_val = hsmmspec(
+  init = init0, 
+  transition = P0, 
+  parms.emission = B0, 
+  sojourn = S0,
+  dens.emission = dtelem.hsmm.mv, 
+  mstep = mstep.telem.mv
+)
+```
+
+Now, we can fit the model and predict
+
+```{r mshmm-fit}
+# Fit model
+data = list(x=with(tmp1, as.matrix(tmp1[,c("ind_dry","num_dives","x_disp_km","y_disp_km")])), N=table(tmp1$deployid))
+fit = hsmmfit(data, start_val, mstep = mstep.telem.mv)
+
+predData$state = predict(fit, data)$s
+predData$state = as.factor(predData$state)
 ```
 
 ## Results
 
+### Adult Bearded Seals
+
+The results of the model fit are provided
+
+```{r fit-summary}
+summary(fit)
+```
+
+And, we can plot the state assignments for each bearded seal
+
+```{r plot-5,fig.height=6,echo=FALSE}
+library(ggplot2)
+ggplot(data=predData,aes(x=deploy_day,y="")) + 
+  geom_tile(aes(fill=state)) + 
+  facet_wrap(~deployid, ncol=1) + 
+  usweb_theme()+
+   theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank()) +
+  ggtitle("Seasonal State Assignments for 7 Adult Bearded Seals") +
+  usweb_theme()
+```
+
+We can also combine the state assignments across our tagged seals by taking the majority state for each time step. The color transparency is set to the proportion of animals represented by that majority state. Note that, some states may not be present in the combined graph.
+
+```{r plot-6, fig.height=4, echo=FALSE}
+combo <- predData %>% 
+  group_by(deploy_day,state) %>% 
+  summarise(counter = n()) %>% 
+  group_by(deploy_day) %>% 
+  filter(counter == max(counter))
+
+ggplot(data=combo,aes(x=deploy_day,y=" ")) + 
+  geom_tile(aes(fill=state,alpha=counter/7)) +
+  scale_fill_discrete(limits=levels(predData$state),drop=TRUE) +
+  scale_alpha(guide = 'none') + usweb_theme()+
+   theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank()) +
+  ggtitle("Combined Seasonal State Assignments Across 7 Adult Bearded Seals")
+```
+
+Now that we have some seasonal states assigned, we can examine the distribution of various behaviors across those different states.
+
+```{r plot-7, echo=FALSE}
+ggplot(data=predData %>% filter(percent_dry>3),aes(x=percent_dry)) +
+  geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
+  ggtitle("Distribution of Percent Dry Across Seasonal States") +
+  usweb_theme()
+```
+
+```{r plot-8, echo=FALSE}
+ggplot(data=predData %>% filter(num_dives<150),aes(x=num_dives)) +
+  geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
+  ggtitle("Distribution of Number of Dives Across Seasonal States") +
+  usweb_theme()
+```
+
+```{r plot-9, fig.height=7, echo=FALSE}
+ggplot(data=predData) +
+  geom_histogram(aes(x=bearing,y=..density..,fill=state),binwidth=12) +
+  coord_polar() + 
+  scale_x_continuous(limits=c(0,360),breaks=seq(0,359, by=45)) +
+  facet_wrap(~state,ncol=2) +
+  ggtitle(paste("Distribution of Movement and \n",
+                "Compass Bearing Across Seasonal States")) + 
+  usweb_theme()
+```
 
 
 ## Discussion
