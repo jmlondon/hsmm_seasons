@@ -26,7 +26,7 @@ disclaimer: >
   expressed herein, are those of the author(s) and do not necessarily reflect 
   those of NOAA or the Department of Commerce.
 abstract: >
-  The seasonal timing of key, annual life history events is an important component of many species' ecology. Seasonal periods important to marine mammals often do not align well with typical labels (i.e., spring, summer, winter, fall). The timing of key life history events is well documented only for species found in accessible rookeries or breeding areas. Our knowledge of seasonal timing for species widely dispersed in inaccessible or remote habitats is poor. Here, we employed data from biologging sensors and new statistical modeling to identify and estimate timing of seasonal states for bearded seals (n=7) captured in Kotzebue Sound, Alaska. These animals provide an initial, small dataset we can work with before exapnding to include ribbon (n=82) and spotted seals (n=46) in future interations. Each of these seals is reliant on the seasonal sea ice for pupping, nursing, breeding and molting and these seasons can be characterized by more time spent hauled out on ice, by changes in dive behavior, and by changes in large-scale movement. We are especially interested in the pupping-breeding-molting season, but also use this approach to identify seasonal structure in the non-breeding period. Seasonal periods were treated as separate behavior states that correspond to a hidden Markov process. Hidden Markov models (HMM) are commonly used to estimate behavior states (e.g., foraging, resting, transit) from telemetry data. Typical HMMs, however, have no temporal memory of state assignments and would likely not capture seasonal level states. To address this, we applied a new approximation to a hidden semi-Markov model and specified the transition matrix for the states to mimic the sequential timing of seasons. Dive and haul-out behavior from biologgers were used to estimate these states. The timing and extent of sea ice in the Bering Sea is predicted to change dramatically over the next 50 years and we anticipate bearded, ribbon, and spotted seals might adjust the timing of these life history events in response to those changes.
+  The seasonal timing of key, annual life history events is an important component of many species' ecology. Seasonal periods important to marine mammals often do not align well with typical labels (i.e., spring, summer, winter, fall). The timing of key life history events is well documented only for species found in accessible rookeries or breeding areas. Our knowledge of seasonal timing for species widely dispersed in inaccessible or remote habitats is poor. Here, we employed data from biologging sensors and new statistical modeling to identify and estimate timing of seasonal states for bearded seals (n=7) captured in Kotzebue Sound, Alaska. Each of these seals is reliant on the seasonal sea ice for pupping, nursing, breeding and molting and these seasons can be characterized by more time spent hauled out on ice, by changes in dive behavior, and by changes in large-scale movement. We are especially interested in the pupping-breeding-molting season, but also use this approach to identify seasonal structure in the non-breeding period. Seasonal periods were treated as separate behavior states that correspond to a hidden Markov process. Hidden Markov models (HMM) are commonly used to estimate behavior states (e.g., foraging, resting, transit) from telemetry data. Typical HMMs, however, have no temporal memory of state assignments and would likely not capture seasonal level states. To address this, we applied a a hidden semi-Markov model and specified the transition matrix for the states to mimic the sequential timing of seasons. Dive and haul-out behavior from biologgers were used to estimate these states. The timing and extent of sea ice in the Bering Sea is predicted to change dramatically over the next 50 years and we anticipate bearded seals might adjust the timing of these life history events in response to those changes.
 
 output:
   html_document:
@@ -68,16 +68,15 @@ scale_fill_cblind <- function(...) {
 
 ## Introduction
 
-Since 2006, over 128 ribbon and spotted seals have been captured and outfitted with bio-logging devices that measure hourly wet/dry proportions. In addition, seven adult bearded seals were released with bio-logging devices. The critical life history events of these seals are all associated with increased haul-out behavior and changes in dive behavior. Additionally, migratory-like movements are also key indications of seasonal states. Hidden Markov models require a geometrically distributed sojourn time in a given state. Hidden semi-Markov models allow an arbitrary sojourn distribution --- the duration an animal spends in a state can depend on the time it has already spent in that state. O’Connell et al (2010) applied Hidden semi-Markov models to the estrus detection in dairy cows and developed the `mhsmm` library for R to support similar analyses.
+Between 2009 and 2012 seven adult bearded seals were captured and released with bio-logging devices that provide measures of movement, dive behavior, and hourly wet-dry proportions. The critical life history events of these seals are all associated with increased haul-out behavior and changes in dive behavior. Additionally, migratory-like movements are also key indications of seasonal states. Hidden Markov models require a geometrically distributed sojourn time in a given state. Hidden semi-Markov models allow an arbitrary sojourn distribution --- the duration an animal spends in a state can depend on the time it has already spent in that state. O’Connell et al (2010) applied Hidden semi-Markov models to the estrus detection in dairy cows and developed the `mhsmm` library for R to support similar analyses.
 
 
 ## Methods and Analysis
 
-We will start by loading the bearded seal data from the `kotzeb0912` package and the ribbon and spotted seal data from the `pepteldata` package. We will also rely on several other packages for the data munging and analysis. Data within these packages --- `kotzeb0912` and `pepteldata`) --- have been processed through the Wildlife Computers Data Portal and additionally munged for more efficient incorporation into analyses like this.
+We will start by loading the bearded seal data from the `kotzeb0912` package. We will also rely on several other packages for the data munging and analysis. Data within `kotzeb0912` have been processed through the Wildlife Computers Data Portal and additionally munged for more efficient incorporation into analyses like this.
 
 ```{r load-eb-data, include=FALSE}
 library(kotzeb0912)
-library(pepteldata)
 library(sp)
 library(rgdal)
 library(trip)
@@ -90,15 +89,12 @@ library(lubridate)
 
 ### Model Seal Movement
 
-The first step will be to load in the location data and run these data through the `crawl` package to model seal movement and estimate locations every 6 hours. The `kotzeb0912` and `pepteldata` have slightly different organizational structures and column headings (will be fixed in the near future) so we need to do some work before merging them together.
+The first step will be to load in the location data and run these data through the `crawl` package to model seal movement and estimate locations every 6 hours.
 
 ```{r merge-tel-data}
 data("kotzeb0912_locs")
 data("kotzeb0912_depths")
 data("kotzeb0912_timelines")
-data("peptel_locations")
-data("peptel_drytimes")
-data("peptel_divedepth")
 
 kotzeb0912_locs <- kotzeb0912_locs %>% 
   dplyr::select(deployid,date_time=unique_posix,instr,
@@ -116,73 +112,20 @@ kotzeb0912_timelines <- kotzeb0912_timelines %>%
   dplyr::filter(deployid %in% kotzeb0912_locs$deployid) %>% 
   dplyr::rename(date_time=datadatetime)
 
-peptel_locations <- peptel_locations %>% 
-  dplyr::select(deployid,date_time=datadatetime,instr=tagtype,
-                quality,latitude,longitude,error_radius,
-                error_semimajor_axis = error_semi_major_axis,
-                error_semiminor_axis = error_semi_minor_axis,
-                error_ellipse_orientation) %>% 
-  dplyr::mutate(date_time = lubridate::with_tz(date_time,"UTC")) %>% 
-  dplyr::filter(instr %in% c("SPLASH","MK10A","MK10","ST16"),
-                !deployid %in% kotzeb0912_locs$deployid)
-
-peptel_ids <- peptel_locations %>% group_by(deployid) %>% 
-  filter(n()>30) %>% select(deployid)
-
-peptel_locations <- peptel_locations %>% 
-  filter(deployid %in% peptel_ids$deployid)
-
-library(xts)
-date_unique <-peptel_locations %>% 
-  group_by(deployid) %>%
-  do(unique_date = xts::make.time.unique(.$date_time,eps=1)) %>%
-  tidyr::unnest(unique_date) %>%
-  mutate(unique_posix = as.POSIXct(.$unique_date,origin='1970-01-01 00:00:00',tz='UTC')) %>%
-  dplyr::arrange(deployid,unique_posix) %>% 
-  dplyr::select(unique_posix) %>% 
-  ungroup()
-
-peptel_locations <- peptel_locations %>% arrange(deployid,date_time) %>%
-  bind_cols(date_unique) %>% select(-date_time) %>% 
-  rename(date_time = unique_posix)
-
-peptel_drytimes <- peptel_drytimes %>% 
-  dplyr::filter(deployid %in% peptel_locations$deployid) %>% 
-  dplyr::mutate(datadatetime = with_tz(datadatetime,"UTC")) %>% 
-  dplyr::select(deployid,date_time=datadatetime,percent_dry=dry)
-
-peptel_divedepth <- peptel_divedepth %>% 
-  tidyr::gather(bin,num_dives, starts_with('bin')) %>%
-  dplyr::mutate(date_time = with_tz(datadatetime, "UTC")) %>% 
-  dplyr::select(deployid,
-                instr=tagtype,
-                date_time,
-                -datadatetime,
-                histtype,bin,num_dives) %>%
-  dplyr::select(deployid,date_time,num_dives,bin) %>% 
-  dplyr::filter(deployid %in% peptel_locations$deployid) %>% 
-  dplyr::arrange(deployid,date_time,bin) 
-
-locs <- bind_rows(peptel_locations,kotzeb0912_locs)
-depths <- bind_rows(peptel_divedepth,kotzeb0912_depths)
-drytimes <- bind_rows(peptel_drytimes,kotzeb0912_timelines)
+locs <- kotzeb0912_locs
+depths <- kotzeb0912_depths
+drytimes <- kotzeb0912_timelines
 
 locs <- locs %>% 
-  mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA),
-         species = ifelse(grepl("^PL.",deployid),'Spotted seal',species),
-         species = ifelse(grepl("^HF.",deployid),'Ribbon seal',species)) %>% 
+  mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA)) %>% 
   dplyr::filter(!is.na(species)) %>% arrange(deployid,date_time)
 
 depths <- depths %>% 
-  mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA),
-         species = ifelse(grepl("^PL.",deployid),'Spotted seal',species),
-         species = ifelse(grepl("^HF.",deployid),'Ribbon seal',species))%>% 
+  mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA)) %>% 
   dplyr::filter(!is.na(species)) %>% arrange(deployid,date_time)
 
 drytimes <- drytimes %>% 
-  mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA),
-         species = ifelse(grepl("^PL.",deployid),'Spotted seal',species),
-         species = ifelse(grepl("^HF.",deployid),'Ribbon seal',species))%>% 
+  mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA)) %>% 
   dplyr::filter(!is.na(species)) %>% arrange(deployid,date_time)
 
 ```
@@ -218,16 +161,9 @@ locs_data <- locs_data %>% bind_rows(kotzeb0912_gps) %>%
   filter(!grepl("^EB2004.",deployid)) %>% 
   filter(!grepl("^EB2005.",deployid)) %>% 
   filter(!grepl("^EB2006.",deployid)) %>% 
-  filter(!grepl("^PL2005.",deployid)) %>% 
-  filter(!grepl("^PL2006.",deployid)) %>% 
   arrange(deployid,date_time)
 
 locs_data_ellipse<- filter(locs_data,!is.na(error_semimajor_axis)) %>% 
-  arrange(deployid,date_time) %>% 
-  as.data.frame(.)
-
-locs_data_argos <- filter(locs_data,is.na(error_semimajor_axis),
-                          !deployid %in% locs_data_ellipse$deployid) %>% 
   arrange(deployid,date_time) %>% 
   as.data.frame(.)
 ```
@@ -287,60 +223,7 @@ model_fits_ellipse <-
 
 names(model_fits_ellipse) <- ids
 
-data <- as.data.frame(locs_data_argos)
-data$quality <- factor(data$quality,
-                       levels=c("3", "2", "1","0","A","B"))
-
-coordinates(data) = ~longitude+latitude
-proj4string(data) = CRS("+proj=longlat +datum=WGS84")
-
-data=spTransform(data, CRS("+init=epsg:3571"))
-
-## Loop over PTT and fit CTCRW models
-ids = unique(data@data$deployid)
-
-library(doParallel)
-n.cores <- detectCores()
-registerDoParallel(cores=3)
-
-model_fits_argos <-
-  foreach(i = 1:length(ids)) %dopar% {
-  id_data = subset(data,deployid==ids[i])
-    
-    init = list(a = c(coordinates(id_data)[1,1],0,
-                      coordinates(id_data)[1,2],0),
-                P = diag(c(5000 ^ 2,10 * 3600 ^ 2, 
-                           5000 ^ 2, 10 * 3600 ^ 2)))
-    
-    fixPar = c(log(250), log(500), log(1500), rep(NA,4), NA)
-    
-    constr=list(lower=c(rep(log(1500),2), rep(-Inf,3)),
-            upper=rep(Inf,5))
-    
-    ln.prior = function(theta){-abs(theta[4]-3)/0.5}
-    
-  fit <- crwMLE(
-      mov.model =  ~ 1,
-      err.model = list(
-        x =  ~ quality - 1
-      ),
-      data = id_data,
-      Time.name = "date_time",
-      initial.state = init,
-      fixPar = fixPar,
-      constr = constr,
-      prior = ln.prior,
-      initialSANN = list(maxit = 2500),
-      control = list(REPORT = 10, trace = 1)
-    )
-    fit
-  }
-
-names(model_fits_argos) <- ids
-
-
 # print(model_fits_ellipse)
-# print(model_fits_argos)
 ```
 
 ### Predict locations every 6 hours
@@ -365,24 +248,7 @@ predData_ellipse <- Filter(function(x) inherits(x,"crwPredict"),predData_ellipse
 predData_ellipse <- dplyr::bind_rows(predData_ellipse) %>% 
   filter(locType=="p")
 
-predData_argos <- foreach(i = 1:length(model_fits_argos)) %dopar% {
-  if(!inherits(model_fits_argos[[i]],"try-error")) {
-  model_fits_argos[[i]]$data$date_time <- lubridate::with_tz(
-    model_fits_argos[[i]]$data$date_time,"UTC")
-  predTimes <- seq(
-    lubridate::ceiling_date(min(model_fits_argos[[i]]$data$date_time),"day"),
-    lubridate::floor_date(max(model_fits_argos[[i]]$data$date_time),"day"),
-    "6 hours")
-  tmp = crwPredict(model_fits_argos[[i]], predTime=predTimes)
-  } else return(NA)
-}
-
-predData_argos <- Filter(function(x) inherits(x,"crwPredict"),predData_argos)
-
-predData_argos <- dplyr::bind_rows(predData_argos) %>% 
-  filter(locType=="p")
-
-predData <- dplyr::bind_rows(predData_ellipse,predData_argos)
+predData <- predData_ellipse
 
 predData$predTimes <- intToPOSIX(predData$TimeNum)
 
@@ -521,10 +387,6 @@ predData <- predData %>%
 select_ids <- predData %>% group_by(deployid) %>% 
   filter(n()>720) %>% select(deployid)
 
-remove_ids <- c("PL2009_2005_06L0126","HF2005_5898_05L0001","HF2009_1019_09L0040",
-                "HF2005_5880_05L0003","HF2005_5882_05L0008","HF2005_5884_05L0009",
-                "HF2005_5890_05L0011","HF2005_5894_05L0013","HF2005_5896_05L0015")
-
 predData <- predData %>% 
   filter(deployid %in% select_ids$deployid,
          !deployid %in% remove_ids)
@@ -550,38 +412,12 @@ p1 <- ggplot(predData_eb, aes(x=days_since_apr1, y=ho_binary)) +
   ggtitle("haul-out status (bearded seal)") +
   usweb_theme() + scale_colour_cblind()
 p1
-
-predData_hf <- predData %>% filter(species=="Ribbon seal")
-p1 <- ggplot(predData_hf, aes(x=days_since_apr1, y=ho_binary)) + 
-  geom_point(alpha=0.1,size=2) + facet_grid(deployid ~ .) + 
-  ggtitle("haul-out status (ribbon seal)") +
-  usweb_theme()+ scale_colour_colorblind()
-p1
-
-predData_pl <- predData %>% filter(species=="Spotted seal")
-p1 <- ggplot(predData_pl, aes(x=days_since_apr1, y=ho_binary)) + 
-  geom_point(alpha=0.1,size=2) + facet_grid(deployid ~ .) + 
-  ggtitle("haul-out status (spotted seal)") +
-  usweb_theme()+ scale_colour_colorblind()
-p1
 ```
 
 ```{r plot-2, fig.height = 8,echo=FALSE}
 p2 <- ggplot(predData_eb, aes(x=days_since_apr1, y=num_dives)) + 
   geom_point(alpha=0.2) + facet_grid(deployid ~ .) + 
   ggtitle("number of dives below 10m (bearded seal)") +
-  usweb_theme()
-p2
-
-p2 <- ggplot(predData_hf, aes(x=days_since_apr1, y=num_dives)) + 
-  geom_point(alpha=0.2) + facet_grid(deployid ~ .) + 
-  ggtitle("number of dives below 10m (ribbon seal)") +
-  usweb_theme()
-p2
-
-p2 <- ggplot(predData_pl, aes(x=days_since_apr1, y=num_dives)) + 
-  geom_point(alpha=0.2) + facet_grid(deployid ~ .) + 
-  ggtitle("number of dives below 10m (spotted seal)") +
   usweb_theme()
 p2
 ```
@@ -641,16 +477,18 @@ After loading the package and doing a little bit of data cleaning, we need to se
 J = 4
 
 # Initial vals
-init0 = rep(1/J, J)
+init0 = c(1, rep(0, J-1))
 B0 = list(
   p = c(0.05,0.05,0.07,0.1),
   lambda = rep(30, J), 
   mu = rep(list(c(0,0)), J),
   sigma = rep(list(20*diag(2)), J)
 )
-P0 = exp(-abs(row(diag(J)) - col(diag(J))))
-diag(P0) = 0
-P0 = sweep(P0, 1, rowSums(P0), "/")
+P0 <- matrix(0,ncol=J,nrow=J)
+n <- 2
+n1 <- n:ncol(P0)
+P0[seq(n1), n1] <- diag(ncol(P0) - n + 1)
+
 S0 = list(lambda=rep(150, J), shift=rep(200,J), type="poisson")
 
 start_val = hsmmspec(
@@ -669,7 +507,8 @@ Now, we can fit the model and predict
 # Fit model
 data = list(x=with(tmp1, as.matrix(tmp1[,c("ind_dry","num_dives","x_disp_km","y_disp_km")])), N=table(tmp1$deployid))
 #M <- 600
-fit = hsmmfit(data, start_val, mstep = mstep.telem.mv)
+fit = hsmmfit(data, start_val, mstep = mstep.telem.mv,
+              lock.transition =TRUE)
 
 dd$state = predict(fit, data)$s
 dd$state = as.factor(dd$state)
@@ -679,131 +518,6 @@ dd_bearded <- dd
 ```
 
 
-### ribbon seal fit
-
-```{r mshmm-start-hf}
-library(mhsmm)
-
-dd <- predData_hf %>% filter(age != "YOY")
-
-id = levels(factor(dd$deployid))
-dd$ind_dry = ifelse(dd$percent_dry>100/3, 1, 0)
-dd$y_disp_km = dd$y_disp/1000
-dd$x_disp_km = dd$x_disp/1000
-
-tmp1 = dd#[predData$deployid==id[1],]
-
-### MHSMM functions
-source("mhsmm_functions.R")
-```
-
-After loading the package and doing a little bit of data cleaning, we need to setup the initial values and parameters. Initial investigation and model comparison with AIC suggests that 4 states provides the best model.
-
-```{r mshmm-init-hf}
-# Number of states
-J = 3
-
-# Initial vals
-init0 = rep(1/J, J)
-B0 = list(
-  #p = c(0.05,0.05,0.07,0.1),
-  p = c(0.1, 0.1, 0.1),
-  lambda = rep(30, J), 
-  mu = rep(list(c(0,0)), J),
-  sigma = rep(list(20*diag(2)), J)
-)
-P0 = exp(-abs(row(diag(J)) - col(diag(J))))
-diag(P0) = 0
-P0 = sweep(P0, 1, rowSums(P0), "/")
-S0 = list(lambda=rep(150, J), shift=rep(240,J), type="poisson")
-
-start_val = hsmmspec(
-  init = init0, 
-  transition = P0, 
-  parms.emission = B0, 
-  sojourn = S0,
-  dens.emission = dtelem.hsmm.mv, 
-  mstep = mstep.telem.mv
-)
-```
-
-Now, we can fit the model and predict
-
-```{r mshmm-fit-hf}
-# Fit model
-data = list(x=with(tmp1, as.matrix(tmp1[,c("ind_dry","num_dives","x_disp_km","y_disp_km")])), N=table(tmp1$deployid))
-#M <- 600
-fit = hsmmfit(data, start_val, mstep = mstep.telem.mv)
-
-dd$state = predict(fit, data)$s
-dd$state = as.factor(dd$state)
-
-fit_ribbon <- fit
-dd_ribbon <- dd
-```
-
-### YOY spotted seal fit
-
-```{r mshmm-start-pl}
-library(mhsmm)
-
-dd <- predData_pl %>% filter(age == "YOY")
-
-id = levels(factor(dd$deployid))
-dd$ind_dry = ifelse(dd$percent_dry>100/3, 1, 0)
-dd$y_disp_km = dd$y_disp/1000
-dd$x_disp_km = dd$x_disp/1000
-
-tmp1 = dd#[predData$deployid==id[1],]
-
-### MHSMM functions
-source("mhsmm_functions.R")
-```
-
-After loading the package and doing a little bit of data cleaning, we need to setup the initial values and parameters. Initial investigation and model comparison with AIC suggests that 4 states provides the best model.
-
-```{r mshmm-init-pl}
-# Number of states
-J = 3
-
-# Initial vals
-init0 = rep(1/J, J)
-B0 = list(
-  #p = c(0.05,0.05,0.07,0.1),
-  p = c(0.1, 0.1, 0.1),
-  lambda = rep(50, J), 
-  mu = rep(list(c(0,0)), J),
-  sigma = rep(list(20*diag(2)), J)
-)
-P0 = exp(-abs(row(diag(J)) - col(diag(J))))
-diag(P0) = 0
-P0 = sweep(P0, 1, rowSums(P0), "/")
-S0 = list(lambda=rep(100, J), shift=rep(240,J), type="poisson")
-
-start_val = hsmmspec(
-  init = init0, 
-  transition = P0, 
-  parms.emission = B0, 
-  sojourn = S0,
-  dens.emission = dtelem.hsmm.mv, 
-  mstep = mstep.telem.mv
-)
-```
-
-Now, we can fit the model and predict
-
-```{r mshmm-fit-pl}
-# Fit model
-data = list(x=with(tmp1, as.matrix(tmp1[,c("ind_dry","num_dives","x_disp_km","y_disp_km")])), N=table(tmp1$deployid))
-#M <- 600
-fit = hsmmfit(data, start_val, mstep = mstep.telem.mv)
-
-dd$state = predict(fit, data)$s
-dd$state = as.factor(dd$state)
-
-fit_spotted_yoy <- fit
-dd_spotted_yoy <- dd
-```
 
 ## Results
 
@@ -872,146 +586,6 @@ ggplot(data=dd_bearded) +
   scale_x_continuous(limits=c(0,360),breaks=seq(0,359, by=45)) +
   facet_wrap(~state,ncol=2) +
   ggtitle(paste("Distribution of Movement and \n",
-                "Compass Bearing Across Seasonal States")) + 
-  usweb_theme()
-```
-
-
-### Adult and Sub-Adult Ribbon Seals
-
-The results of the model fit are provided
-
-```{r fit-summary-hf}
-summary(fit_ribbon)
-```
-
-And, we can plot the state assignments for each ribbon seal
-
-```{r plot-10,fig.height=6,echo=FALSE}
-library(ggplot2)
-ggplot(data=dd_ribbon,aes(x=days_since_apr1,y="")) + 
-  geom_tile(aes(fill=state)) + 
-  facet_wrap(~deployid, ncol=1) + 
-  usweb_theme()+
-   theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.title.y = element_blank()) +
-  ggtitle("Seasonal State Assignments for Each Ribbon Seal") +
-  usweb_theme()
-```
-
-We can also combine the state assignments across our tagged seals by taking the majority state for each time step. The color transparency is set to the proportion of animals represented by that majority state. Note that, some states may not be present in the combined graph.
-
-```{r plot-11, fig.height=4, echo=FALSE}
-combo <- dd_ribbon %>% 
-  group_by(days_since_apr1,state) %>% 
-  summarise(counter = n()) %>% 
-  group_by(days_since_apr1) %>% 
-  filter(counter == max(counter))
-
-ggplot(data=combo,aes(x=days_since_apr1,y=" ")) + 
-  geom_tile(aes(fill=state,alpha=counter/7)) +
-  scale_fill_discrete(limits=levels(dd_ribbon$state),drop=TRUE) +
-  scale_alpha(guide = 'none') + usweb_theme()+
-   theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.title.y = element_blank()) +
-  ggtitle("Combined Seasonal State Assignments Across Ribbon Seals")
-```
-
-Now that we have some seasonal states assigned, we can examine the distribution of various behaviors across those different states.
-
-```{r plot-12, echo=FALSE}
-ggplot(data=dd_ribbon %>% filter(percent_dry>3),aes(x=percent_dry)) +
-  geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
-  ggtitle("Distribution of Ribbon Seal Percent Dry Across Seasonal States") +
-  usweb_theme()
-```
-
-```{r plot-13, echo=FALSE}
-ggplot(data=dd_ribbon %>% filter(num_dives<150),aes(x=num_dives)) +
-  geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
-  ggtitle("Distribution of Number of Dives\n for Ribbon Seals Across Seasonal States") +
-  usweb_theme()
-```
-
-```{r plot-14, fig.height=7, echo=FALSE}
-ggplot(data=dd_ribbon) +
-  geom_histogram(aes(x=bearing,y=..density..,fill=state),binwidth=12) +
-  coord_polar() + 
-  scale_x_continuous(limits=c(0,360),breaks=seq(0,359, by=45)) +
-  facet_wrap(~state,ncol=2) +
-  ggtitle(paste("Distribution of Ribbon Seal Movement and \n",
-                "Compass Bearing Across Seasonal States")) + 
-  usweb_theme()
-```
-
-
-### Young-of-Year Spotted Seals
-
-The results of the model fit are provided
-
-```{r fit-summary-pl}
-summary(fit_spotted_yoy)
-```
-
-And, we can plot the state assignments for each young spotted seal
-
-```{r plot-15,fig.height=6,echo=FALSE}
-library(ggplot2)
-ggplot(data=dd_spotted_yoy,aes(x=days_since_apr1,y="")) + 
-  geom_tile(aes(fill=state)) + 
-  facet_wrap(~deployid, ncol=1) + 
-  usweb_theme()+
-   theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.title.y = element_blank()) +
-  ggtitle("Seasonal State Assignments for Each YOY Spotted Seal") +
-  usweb_theme()
-```
-
-We can also combine the state assignments across our tagged seals by taking the majority state for each time step. The color transparency is set to the proportion of animals represented by that majority state. Note that, some states may not be present in the combined graph.
-
-```{r plot-16, fig.height=4, echo=FALSE}
-combo <- dd_spotted_yoy %>% 
-  group_by(days_since_apr1,state) %>% 
-  summarise(counter = n()) %>% 
-  group_by(days_since_apr1) %>% 
-  filter(counter == max(counter))
-
-ggplot(data=combo,aes(x=days_since_apr1,y=" ")) + 
-  geom_tile(aes(fill=state,alpha=counter/7)) +
-  scale_fill_discrete(limits=levels(dd_spotted_yoy$state),drop=TRUE) +
-  scale_alpha(guide = 'none') + usweb_theme()+
-   theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        axis.title.y = element_blank()) +
-  ggtitle("Combined Seasonal State Assignments Across YOY Spotted Seals")
-```
-
-Now that we have some seasonal states assigned, we can examine the distribution of various behaviors across those different states.
-
-```{r plot-17, echo=FALSE}
-ggplot(data=dd_spotted_yoy %>% filter(percent_dry>3),aes(x=percent_dry)) +
-  geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
-  ggtitle("Distribution of Spotted Seal Percent Dry Across Seasonal States") +
-  usweb_theme()
-```
-
-```{r plot-18, echo=FALSE}
-ggplot(data=dd_spotted_yoy %>% filter(num_dives<150),aes(x=num_dives)) +
-  geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
-  ggtitle("Distribution of Number of Dives\n for Spotted Seals Across Seasonal States") +
-  usweb_theme()
-```
-
-```{r plot-19, fig.height=7, echo=FALSE}
-ggplot(data=dd_spotted_yoy) +
-  geom_histogram(aes(x=bearing,y=..density..,fill=state),binwidth=12) +
-  coord_polar() + 
-  scale_x_continuous(limits=c(0,360),breaks=seq(0,359, by=45)) +
-  facet_wrap(~state,ncol=2) +
-  ggtitle(paste("Distribution of Spotted Seal Movement and \n",
                 "Compass Bearing Across Seasonal States")) + 
   usweb_theme()
 ```
