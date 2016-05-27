@@ -1,0 +1,78 @@
+---
+title: "Estimating Seasonal Behavior States from Biologging Sensor Data"
+author:
+- Josh London
+- Paul Conn
+- Devin Johnson
+- Brett McClintock
+- Michael Cameron
+- Peter Boveng
+date: "May 10, 2015"
+output: 
+- word_document 
+---
+
+```{r,echo=FALSE,message=FALSE}
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(pepteldata)
+
+data("peptel_drytimes")
+```
+
+### Abstract
+
+```{r, echo=FALSE}
+seal_drytimes <- peptel_drytimes %>%
+  dplyr::select(deployid,speno,species,age,sex,datadatetime,dry) %>%
+  mutate(datadatetime = with_tz(datadatetime,tz = "UTC")) %>%
+  mutate(doy = yday(datadatetime),yr = year(datadatetime)) %>%
+  filter(!grepl("HF2005_",speno),!grepl("PL2006_",speno),!grepl("PL2005_",speno)) %>% 
+  filter(species %in% c("Ribbon seal","Spotted seal")) %>%
+  mutate(species = ifelse(species == "Ribbon seal", "rn", "sd")) %>% 
+  group_by(speno,species,age,sex,yr,doy,datadatetime) %>%
+  summarise(dry = mean(dry)) %>% 
+  arrange(speno,datadatetime)
+
+n_seals <- seal_drytimes %>% group_by(species) %>% summarise(n=n_distinct(speno))
+
+top_seals <-
+  top_n(summarise(group_by(seal_drytimes,speno),count = n()),30,count)
+
+dat <- seal_drytimes %>% filter(speno %in% top_seals$speno)
+
+p1 <- ggplot(data=dat, aes(x = doy,y = dry,color = dry),alpha = 0.1) + geom_point(alpha = 1/5,size=1) + facet_grid(speno + species ~ .) + theme(axis.text.y=element_blank(),legend.position="bottom") + ggtitle("Time series haul-out data from a\n sample of ribbon and spotted seals\n")
+```
+
+The seasonal timing of key, annual life history events is an important component of many species' ecology. Seasonal periods important to marine mammals often do not align well with typical labels (i.e., spring, summer, winter, fall). The timing of key life history events is well documented only for species found in accessible rookeries or breeding areas. Our knowledge of seasonal timing for species widely dispersed in inaccessible or remote habitats is poor. Here, we employed data from biologging sensors and new statistical modeling to identify and estimate timing of seasonal states for ribbon (n=`r n_seals[n_seals$species=="rn",]$n`) and spotted seals (n=`r n_seals[n_seals$species=="sd",]$n`) in the Bering Sea. These seals are reliant on the seasonal sea ice for pupping, nursing, breeding and molting and these seasons can be characterized by more time spent hauled out on ice and by changes in dive behavior. We are especially interested in the pupping-breeding-molting season, but also used this approach to identify seasonal structure in the non-breeding period. Seasonal periods were treated as separate behavior states that correspond to a hidden Markov process. Hidden Markov models (HMM) are commonly used to estimate behavior states (e.g., foraging, resting, transit) from telemetry data. Typical HMMs, however, have no temporal memory of state assignments and would likely not capture seasonal level states. To address this, we applied a new approximation to a hidden semi-Markov model and specified the transition matrix for the states to mimic the sequential timing of seasons. Dive and haul-out behavior from biologgers were used to estimate these states. The timing and extent of sea ice in the Bering Sea is predicted to change dramatically over the next 50 years and we anticipate ribbon and spotted seals might adjust the timing of these life history events in response to those changes.
+
+### Additional Discussion
+
+Since 2006, over `r sum(n_seals$n)` ribbon and spotted seals have been captured and outfitted with bio-logging devices that measure hourly wet/dry proportions. The critical life history events are all associated with increased haul-out behavior. Hidden Markov models require a geometrically distributed sojourn time in a given state. Hidden semi-Markov models allow an arbitrary sojourn distribution. In other words, the Hidden semi-Markov approach allows for estimation of states that persist longer than the observation interval. [O’Connell et al (2010)](http://dx.doi.org/10.1007/s13253-010-0033-7) applied Hidden semi-Markov models to the estrus detection in dairy cows and developed the [mhsmm](http://cran.r-project.org/web/packages/mhsmm/index.html) library for R to support similar analyses.
+
+We expect ribbon seals to have at least 3 distinct annual states: an open water or pelagic period characterized by limited to no haul-out behavior, pupping/breeding/molting period characterized by increased haul-out frequency and duration, a transition period leading up to the pupping/breeding/molting period with increasing haul-out behavior as sea ice forms and stabilizes within the Bering Sea. These periods are generally known to correspond to July-November, April-June and December-March, but the specifics are unknown. While, initially, the focus will be on a single observation channel (proportion dry per hour), a multivariate approach would allow inclusion of dive behavior. Additionally, we would expect variability between age and sex classes and for key covariates (e.g. sea-ice concentration or distance to sea-ice edge) to influence state assignment.
+
+### Key Ecological Questions of Interest
+
+* Identify and estimate the timing of 5 (?) seasonal behavior states/patterns
+* Do these identified patterns align with existing knowledge of seal physiology and behavior?
+* Do these identified patterns correspond with oceanographic/sea ice patterns?
+* How much individual or age/sex class variation exists?
+* How rapidly could seals adjust to changes?
+* Can they shift to earlier, rather than later breeding/molting seasons?
+
+### Challenges and Considerations
+
+1. day-of-year is a circular measurement of time and most deployments cross 1 January
+2. missing data could be tricky
+3. data come from deployments in different years
+4. some deployments include data from the same seal over multiple years
+5. how would this compare to Guarie et al's 'change point' analysis/approach
+
+### Exploratory Plots
+
+```{r, echo=FALSE,fig.width=5.5,fig.height=7.5}
+p1
+```
+

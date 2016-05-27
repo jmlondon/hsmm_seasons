@@ -1,0 +1,10 @@
+base
+ggplot2
+dplyr
+lubridate
+sp
+maptools
+nPacMaps
+rgdal
+uswebr
+scales
