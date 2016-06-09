@@ -42,39 +42,6 @@ opts_chunk$set(dev="png",
                dpi=192,warning=FALSE, message=FALSE)
 ```
 
-```{r color-pal, include-FALSE}
-library(scales)
-cblind_main <- c(blue="#0072B2",
-                vermillion="#D55E00",
-                bluish_green="#009E73",
-                reddish_purple="#CC79A7",
-                orange="#E69F00")
-
-cblind_pal <- function() {
-  manual_pal(unname(cblind_main))
-}
-
-scale_colour_cblind <- function(...) {
-  discrete_scale("colour", "cblind", cblind_pal(), ...)
-}
-
-scale_color_cblind <- scale_colour_cblind
-
-scale_fill_cblind <- function(...) {
-  discrete_scale("fill", "cblind", cblind_pal(), ...)
-} 
-```
-
-
-## Introduction
-
-Between 2009 and 2012 seven adult bearded seals were captured and released with bio-logging devices that provide measures of movement, dive behavior, and hourly wet-dry proportions. The critical life history events of these seals are all associated with increased haul-out behavior and changes in dive behavior. Additionally, migratory-like movements are also key indications of seasonal states. Hidden Markov models require a geometrically distributed sojourn time in a given state. Hidden semi-Markov models allow an arbitrary sojourn distribution --- the duration an animal spends in a state can depend on the time it has already spent in that state. O’Connell et al (2010) applied Hidden semi-Markov models to the estrus detection in dairy cows and developed the `mhsmm` library for R to support similar analyses.
-
-
-## Methods and Analysis
-
-We will start by loading the bearded seal data from the `kotzeb0912` package. We will also rely on several other packages for the data munging and analysis. Data within `kotzeb0912` have been processed through the Wildlife Computers Data Portal and additionally munged for more efficient incorporation into analyses like this.
-
 ```{r load-eb-data, include=FALSE}
 library(kotzeb0912)
 library(sp)
@@ -87,12 +54,41 @@ library(dplyr)
 library(lubridate)
 ```
 
-### Model Seal Movement
+## Introduction
 
-The first step will be to load in the location data and run these data through the `crawl` package to model seal movement and estimate locations every 6 hours.
+The seasonal timing of key, annual life history events is an important component of many species' ecology and evolutionary history. Highly migratory species time their arrival at locations to coincide with favorable environmental conditions or peaks in prey availability. Non-migratory species in highly seasonal zones have adapted to time important events such as reproduction and rearing of young with more favorable seasons. Both of these strategies are present in the Arctic ecosystem. As the climate warms and seasonal timing changes, how well Arctic animals adjust their phenology will be an important response. Unfortunately, many Arctic species are widley dispersed and exist in inaccessible or remote habitats. Observing Arctic species with the regularity and precisions required to establish phenological patterns is a significant challenge.
+
+Arctic seal species (e.g., bearded seal, ringed seal, ribbon seal) are classified as ice-associated or ice-obligate in recognition of their reliance on sea-ice for key annual events such as pupping, weaning, and molting. Sea-ice habitat availability for these species is highly seasonal and each species has adapted their annual cycles and behaviors to best optimize their use of this habitat. Ringed seals rely on fast ice and surface snow accumulation to construct lairs where pups are born and sheltered from the weather and predators. In years when snow melt begins early, lairs are subject to collapse and pups are more susceptible to predation and exposed to the elements. Ribbon seals are mostly pelagic throughout the year but are closely associated with the marginal sea-ice zone during pupping, breeding, weaning, and molting. All of these critical events are compressed into just a few months that coincide with maximum sea-ice extent in the Bering Sea and the initial melt period. Bearded seals are more closely associated with sea-ice throughout the year, but their use of sea-ice as haul-out platform changes. Many bearded seals in the North Pacific will move through the Bering Strait into the Bering Sea as sea ice advances in the late fall and then back up into the Chukchi and Beaufort seas as it retreats in early summer.
+
+Seasonal periods important to these seals (and other marine species) often do not align well with typical labels (i.e., spring, summer, winter, fall). The timing of key life history events is well documented only for species found in accessible habitats or breeding areas. Long term studies have documented such critical parameters as the timing of migration, arrival timing of breeders, peak pupping or hatching, and molting. Our knowledge of seasonal timing for species widely dispersed in inaccessible or remote habitats, however, is poor.
+
+The deployment of bio-logging telemetry devices has been key tool for understanding the ecology and behavior of animals. And, has been an especially critical tool for studies of wide ranging species in remote locations. For marine mammals, and especially pinnipeds, bio-loggers are typically recording behavioral parameters (e.g., dive behavior, haul-out behavior, foraging events) that are expected to vary across seasons and life history events. The critical life history events of these seals are all associated with increased haul-out behavior and changes in dive behavior. Additionally, migratory-like movements are also key indications of seasonal states. By examining these behavioral parameters and information related to animal movement in a single, multivariate framework, the number of seasons and the timing of change can be estimated.
+
+We propose using a multivariate hidden semi-Markov model (mhsmm) as an approach to identifying key seasonal periods and the timing of those seasons from bio-logging data. The hidden Markov model (hmm) is used frequently in the study of animal movement. In most cases, the hmm is used to identify states such as foraging, resting, or transit from characteristic movement (step-length and turning angle). In a few cases, additional behavior data has been incorporated to futher improve the model inference. While a few have proposed and implemented the use hidden semi-Markov models as better approaches for understanding wildlife behavior, they have not been previously implemented as a means for estimating seasonal level states. Hidden Markov models require a geometrically distributed sojourn time in a given state. Hidden semi-Markov models allow an arbitrary sojourn distribution --- the duration an animal spends in a state can depend on the time it has already spent in that state. O’Connell et al (2010) applied Hidden semi-Markov models to the estrus detection in dairy cows and developed the `mhsmm` library for R to support similar analyses.
+
+> insert background and more discussion on hmm, hsmm, and mhsmm
+
+```{r eb-deployments,include=FALSE}
+data("kotzeb0912_locs")
+deployments <- kotzeb0912_locs %>% 
+  dplyr::filter(instr == "Mk10") %>% 
+  dplyr::group_by(deployid) %>% 
+  dplyr::summarise(start_date = min(date_time),
+                   end_date = max(date_time),
+                   duration = max(date_time) - min(date_time))
+```
+
+Between 2009 and 2012 seven adult bearded seals were captured and released with bio-logging devices that provide measures of movement, dive behavior, and hourly wet-dry proportions. The tags were deployed in June and July with deployment duration ranging from `r min(deployments$duration)` to `r max(deployments$duration)` days (mean = `r mean(deployments$duration)` days). Data from these deployments are available as an R data package and we will use these data to demonstrate the application of multivariate hidden semi-Markov models to identify seasonal states from real world telemetry data.
+
+## Methods and Analysis
+
+The `kotzeb0912` R package contains telemetry data from 14 deployments on seven adult bearded seals. Each seal was deployed with two tags --- one adhered to the hair on the head of the animal and another attached to the flipper. The flipper attached tags were removed from the dataset for this analysis. All of the telemetry data was transmitted via the Argos satellite system and processed through the Wildlife Computers Data Portal. The location data consist of coordinates estimated via Argos along with the associated error ellipses as well as locations derived from the FastLoc GPS sensor on three of the deployments. Error for the FastLoc GPS coordinates was presumed to be a fixed value of 50 meters. Behavior data of interest for this analysis includes histograms of maximum dive depths within a 6 hour period and the percentage of each hour the tag was dry.
+
+### Modeling Movement and Aligning Data
+
+The `crawl` R package was employed to model seal movement and estimate locations every 6 hours throughout the deployment. Prior to modeling the movement with `crawl`, the `argosfilter` package provided a course speed filter (vmax=3.5 m/s) to eliminate obvious outlier locations. Predicted locations are specified from the posterior mean and variance of the model track and coincide with the mid-point of the 6-hour dive behavior histograms. The haul-out behavior timelines are provided as hourly percent-dry values and were grouped into 6-hour blocks that are centered on our 6-hourly predictions. Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, the number of dives across all bins less than 10 meters are summed. The expectation is this will accurately represent number of foraging dives over a 6 hour period. 
 
 ```{r merge-tel-data}
-data("kotzeb0912_locs")
 data("kotzeb0912_depths")
 data("kotzeb0912_timelines")
 
@@ -130,7 +126,6 @@ drytimes <- drytimes %>%
 
 ```
 
-Prior to modeling the movement with `crawl`, we will use the `argosfilter` package to pass the Argos locations through a course speed filter (vmax=3.5 m/s).
 
 ```{r argos-filter}
 # speedfilter using the paralell package for multi-core speed
@@ -146,7 +141,6 @@ locs_data <- filter(locs,filtered=="not") %>% arrange(deployid,date_time) %>%
 
 ```
 
-A few of the bearded seals were deployed with GPS capable tags and so we need to merge the GPS data with our Argos data.
 
 ```{r gps-data}
 data("kotzeb0912_gps")
@@ -158,17 +152,12 @@ kotzeb0912_gps <- kotzeb0912_gps %>%
   mutate(error_semimajor_axis = 50,error_semiminor_axis = 50, error_ellipse_orientation = 1) 
 
 locs_data <- locs_data %>% bind_rows(kotzeb0912_gps) %>% 
-  filter(!grepl("^EB2004.",deployid)) %>% 
-  filter(!grepl("^EB2005.",deployid)) %>% 
-  filter(!grepl("^EB2006.",deployid)) %>% 
   arrange(deployid,date_time)
 
 locs_data_ellipse<- filter(locs_data,!is.na(error_semimajor_axis)) %>% 
-  arrange(deployid,date_time) %>% 
-  as.data.frame(.)
-```
+  arrange(deployid,date_time)
 
-The specifications for the movement model are fairly straightforward. Note we are using the development version of `crawl` and incorporating the error ellipse structure. The GPS locations were all given a fixed error of 50m.
+```
 
 ```{r crawl-model-ellipse, results='hide'}
 data <- as.data.frame(locs_data_ellipse)
@@ -222,13 +211,8 @@ model_fits_ellipse <-
   }
 
 names(model_fits_ellipse) <- ids
-
-# print(model_fits_ellipse)
 ```
 
-### Predict locations every 6 hours
-
-This function predicts the regular-timed -- in this case, 6-hourly -- locations along the movement path using the posterior mean and variance of the track. 
 
 ```{r message=FALSE}
 predData_ellipse <- foreach(i = 1:length(model_fits_ellipse)) %dopar% {
@@ -254,10 +238,6 @@ predData$predTimes <- intToPOSIX(predData$TimeNum)
 
 ```
 
-
-### Merge predicted locations with haul-out data
-
-The haul-out behavior timelines are provided as hour percent-dry values. We want to group these values into 6-hour blocks that are centered on our 6-hourly predictions. To accomplish this, we will setup a grouping column that assigns a unique integer to each 6 hour period.
 
 ```{r load-timelines, include=FALSE}
 drytimes <- drytimes %>% 
@@ -300,9 +280,6 @@ predData <- dplyr::left_join(predData,
   rename(date_time=predTimes)
 ```
 
-### Merge predicted locations with dive behavior
-
-Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, we will sum the number of dives across all bins less than 10m. This should represent the most likely number of foraging dives over a 6 hour period. Future analysis may consider using time-at-depth instead of number of dives.
 
 ```{r load-dive-depths}
 
@@ -317,9 +294,9 @@ predData <- dplyr::left_join(predData,diveData) %>%
   arrange(deployid,date_time) 
 ```
 
-### Calculate x and y displacement for each step
+### Movement Bearing
 
-We'll use the dplyr::lag() function to calculate the difference in x and y when compared with the previous x and y values. This will give us a measure of northing and easting displacement at each time step. These values will form the basis for our xy-displacement multi-variate normal parameter in the model.
+The lag difference in x and y coordinates provides a measure of northing and easting displacement at each time step. These displacement parameters can be used to, then, determine the compass bearing of each movement step. Compass bearing provides a more user friendly, interpretable description of movement compared to x/y displacement. These values will form the basis for our xy-displacement multi-variate normal parameter in the model.
 
 ```{r xy-displacement}
 predData <- predData %>% 
@@ -331,7 +308,6 @@ predData <- predData %>%
   ungroup()
 ```
 
-We can use a custom function to calculate the compass bearing between those two points. Compass bearing provides a more user friendly description of movement compared to x/y displacement.
 
 ```{r compass-bearing}
 anglefun <- function(xx,yy,bearing=TRUE,as.deg=FALSE){
@@ -361,9 +337,9 @@ predData <- predData %>% rowwise() %>%
   ungroup()
 ```
 
-### Add deploy_day for aligning deployments
+### Aligning Deployments
 
-Since these deployments occurred over multiple years, we will want a convenient way to align the deployments. The simplest way to do this is to use day-of-year integers and add 365 to days in January-May. At this point, we will also do some additional filtering to make sure we don't have any corrupt or other outlier parameters from the tag data.
+Since these deployments occurred over multiple years, we will want a convenient way to align the deployments. The simplest way to do this is to specify 1 April as the start date for every deployment. We then use the number of days since 1 April as our time scale. 
 
 ```{r days-since-apr1}
 id_apr1 <- predData %>% 
@@ -374,22 +350,11 @@ id_apr1 <- predData %>%
 predData <- predData %>% left_join(id_apr1) %>% 
   mutate(days_since_apr1 = as.numeric(difftime(date_time,apr1,units="days")))
 
-
 predData <- predData %>% 
   mutate(ho_binary=ifelse(percent_dry>=33.3,1,-1),
          y_disp = ifelse(abs(y_disp)>100000,NA,y_disp),
          x_disp = ifelse(abs(x_disp)>100000,NA,x_disp),
          num_dives = ifelse(num_dives > 150,NA,num_dives)) 
-
-predData <- predData %>% 
-  filter(days_since_apr1 <=400)
-
-select_ids <- predData %>% group_by(deployid) %>% 
-  filter(n()>720) %>% select(deployid)
-
-predData <- predData %>% 
-  filter(deployid %in% select_ids$deployid,
-         !deployid %in% remove_ids)
 
 load('pep_age.rda')
 
@@ -398,19 +363,18 @@ predData <- predData %>% left_join(pep_age)
 save(predData,file='predData.rda')
 ```
 
-We now present a series of four plots showing the raw, 'observed' parameter values that will go into the model: haul-out status, number of dives, y-displacement, and x-displacement.
+This series of five plots shows the raw, 'observed' parameter values that will go into the model: haul-out status, number of dives, y-displacement, and x-displacement.
 
 ```{r plot-1, fig.height = 8,echo=FALSE}
 library(ggplot2)
 library(ggthemes)
 library(scales)
-library(uswebr)
 
 predData_eb <- predData %>% filter(species=="Bearded seal")
 p1 <- ggplot(predData_eb, aes(x=days_since_apr1, y=ho_binary)) + 
   geom_point(alpha=0.2,size=3,aes(colour=factor(ho_binary))) + facet_grid(deployid ~ .) + 
   ggtitle("haul-out status (bearded seal)") +
-  usweb_theme() + scale_colour_cblind()
+  theme_fivethirtyeight() + scale_colour_ptol(palette = "ptol2_qual")
 p1
 ```
 
@@ -418,7 +382,7 @@ p1
 p2 <- ggplot(predData_eb, aes(x=days_since_apr1, y=num_dives)) + 
   geom_point(alpha=0.2) + facet_grid(deployid ~ .) + 
   ggtitle("number of dives below 10m (bearded seal)") +
-  usweb_theme()
+  theme_fivethirtyeight() + scale_colour_ptol(palette = "ptol1_qual")
 p2
 ```
 
@@ -430,7 +394,7 @@ ggplot(aes(x=days_since_apr1, y=y_disp/1000)) +
   geom_bar(aes(color=factor(direction)),alpha=0.2,stat="identity") +
   facet_grid(deployid ~ .) + 
   ggtitle("y displacement (bearded seal)") +
-  usweb_theme() + scale_colour_cblind()
+  theme_fivethirtyeight() + scale_colour_ptol(palette = "ptol2_qual")
 ```
 
 ```{r plot-4, fig.height = 8,echo=FALSE}
@@ -441,7 +405,7 @@ ggplot(aes(x=days_since_apr1, y=x_disp/1000)) +
   geom_bar(aes(color=factor(direction)),alpha=0.2,stat="identity") +
   facet_grid(deployid ~ .) + 
   ggtitle("x displacement (bearded seal)") +
-  usweb_theme() + scale_colour_cblind()
+  theme_fivethirtyeight() + scale_colour_ptol(palette = "ptol2_qual")
 ```
 
 ### multivariate hidden semi-markov
@@ -536,12 +500,11 @@ library(ggplot2)
 ggplot(data=dd_bearded,aes(x=days_since_apr1,y="")) + 
   geom_tile(aes(fill=state)) + 
   facet_wrap(~deployid, ncol=1) + 
-  usweb_theme()+
    theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank()) +
   ggtitle("Seasonal State Assignments for 7 Adult Bearded Seals") +
-  usweb_theme() + scale_fill_cblind()
+  theme_fivethirtyeight() + scale_fill_ptol()
 ```
 
 We can also combine the state assignments across our tagged seals by taking the majority state for each time step. The color transparency is set to the proportion of animals represented by that majority state. Note that, some states may not be present in the combined graph.
@@ -556,11 +519,11 @@ combo <- dd_bearded %>%
 ggplot(data=combo,aes(x=days_since_apr1,y=" ")) + 
   geom_tile(aes(fill=state,alpha=counter/7)) +
   scale_fill_discrete(limits=levels(dd_bearded$state),drop=TRUE) +
-  scale_alpha(guide = 'none') + usweb_theme()+
+  scale_alpha(guide = 'none') + theme_fivethirtyeight() +
    theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank()) +
-  ggtitle("Combined Seasonal State Assignments Across 7 Adult Bearded Seals") + scale_fill_cblind()
+  ggtitle("Combined Seasonal State Assignments Across 7 Adult Bearded Seals") + scale_fill_ptol()
 ```
 
 Now that we have some seasonal states assigned, we can examine the distribution of various behaviors across those different states.
@@ -569,14 +532,14 @@ Now that we have some seasonal states assigned, we can examine the distribution 
 ggplot(data=dd_bearded %>% filter(percent_dry>3),aes(x=percent_dry)) +
   geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
   ggtitle("Distribution of Percent Dry Across Seasonal States") +
-  usweb_theme() + scale_fill_cblind()
+  theme_fivethirtyeight() + scale_fill_ptol()
 ```
 
 ```{r plot-8, echo=FALSE}
 ggplot(data=dd_bearded %>% filter(num_dives<150),aes(x=num_dives)) +
   geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
   ggtitle("Distribution of Number of Dives Across Seasonal States") +
-  usweb_theme() + scale_fill_cblind()
+  theme_fivethirtyeight() + scale_fill_ptol()
 ```
 
 ```{r plot-9, fig.height=7, echo=FALSE}
@@ -587,7 +550,7 @@ ggplot(data=dd_bearded) +
   facet_wrap(~state,ncol=2) +
   ggtitle(paste("Distribution of Movement and \n",
                 "Compass Bearing Across Seasonal States")) + 
-  usweb_theme()
+  theme_fivethirtyeight() + scale_fill_ptol()
 ```
 
 
