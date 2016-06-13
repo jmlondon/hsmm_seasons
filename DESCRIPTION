@@ -26,4 +26,6 @@ Imports:
     lubridate
 Remotes:
     jmlondon/kotzeb0912
+    jmlondon/uswebr
+    jmlondon/ggthemes
 License: CC0
