@@ -1,0 +1,29 @@
+Title: Estimating Seasonal Behavior States from Biologging Sensor Data
+Version: 0.5
+Authors@R: c(
+    person("Josh", "London", , "josh.london@noaa.gov", role = c("aut", "cre")),
+    person("Devin", "Johnson", role = "aut"),
+    person("Paul", "Conn", role = "aut"),
+    person("Brett", "McClintock", role = "aut"),
+    person("Michael", "Cameron", role = "aut"),
+    person("Peter", "Boveng", role = "aut"),
+    )
+Description: 
+    manuscript describing the application of a multivariate hidden semi-Markov
+    model for identification of seasonal behavior states from bio-logging data
+URL: 
+BugReports: 
+Depends:
+    R (>= 3.0.2)
+Imports:
+    sp
+    rgdal
+    trip
+    argosfilter
+    crawl
+    parallel
+    dplyr
+    lubridate
+Remotes:
+    jmlondon/kotzeb0912
+License: CC0
