@@ -24,8 +24,5 @@ Imports:
     parallel
     dplyr
     lubridate
-Remotes:
-    jmlondon/kotzeb0912
-    jmlondon/uswebr
-    jmlondon/ggthemes
+Remotes: github::jmlondon/kotzeb0912, github::jmlondon/uswebr, github::jmlondon/ggthemes
 License: CC0
