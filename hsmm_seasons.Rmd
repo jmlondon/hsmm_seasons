@@ -374,7 +374,7 @@ predData_eb <- predData %>% filter(species=="Bearded seal")
 p1 <- ggplot(predData_eb, aes(x=days_since_apr1, y=ho_binary)) + 
   geom_point(alpha=0.2,size=3,aes(colour=factor(ho_binary))) + facet_grid(deployid ~ .) + 
   ggtitle("haul-out status (bearded seal)") +
-  theme_fivethirtyeight() + scale_colour_ptol(palette = "ptol2_qual")
+  theme_fivethirtyeight() + scale_colour_ptol()
 p1
 ```
 
@@ -382,7 +382,7 @@ p1
 p2 <- ggplot(predData_eb, aes(x=days_since_apr1, y=num_dives)) + 
   geom_point(alpha=0.2) + facet_grid(deployid ~ .) + 
   ggtitle("number of dives below 10m (bearded seal)") +
-  theme_fivethirtyeight() + scale_colour_ptol(palette = "ptol1_qual")
+  theme_fivethirtyeight() + scale_colour_ptol()
 p2
 ```
 
@@ -394,7 +394,7 @@ ggplot(aes(x=days_since_apr1, y=y_disp/1000)) +
   geom_bar(aes(color=factor(direction)),alpha=0.2,stat="identity") +
   facet_grid(deployid ~ .) + 
   ggtitle("y displacement (bearded seal)") +
-  theme_fivethirtyeight() + scale_colour_ptol(palette = "ptol2_qual")
+  theme_fivethirtyeight() + scale_colour_ptol()
 ```
 
 ```{r plot-4, fig.height = 8,echo=FALSE}
@@ -405,7 +405,7 @@ ggplot(aes(x=days_since_apr1, y=x_disp/1000)) +
   geom_bar(aes(color=factor(direction)),alpha=0.2,stat="identity") +
   facet_grid(deployid ~ .) + 
   ggtitle("x displacement (bearded seal)") +
-  theme_fivethirtyeight() + scale_colour_ptol(palette = "ptol2_qual")
+  theme_fivethirtyeight() + scale_colour_ptol()
 ```
 
 ### multivariate hidden semi-markov
