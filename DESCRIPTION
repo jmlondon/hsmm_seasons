@@ -14,15 +14,15 @@ Description:
 URL: 
 BugReports: 
 Depends:
-    R (>= 3.0.2)
+    R (>= 3.3.0)
 Imports:
-    sp
-    rgdal
-    trip
-    argosfilter
-    crawl
-    parallel
-    dplyr
+    sp,
+    rgdal,
+    trip,
+    argosfilter,
+    crawl,
+    parallel,
+    dplyr,
     lubridate
 Remotes: github::jmlondon/kotzeb0912, github::jmlondon/uswebr, github::jmlondon/ggthemes
 License: CC0
