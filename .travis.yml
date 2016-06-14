@@ -7,5 +7,5 @@ env:
   global:
   - ENCRYPTION_LABEL: "d7a23806da06"
   - COMMIT_AUTHOR_EMAIL: "josh.london@noaa.gov"
-r_binary_packages: sp
+r_binary_packages: sp, rgdal
 script: bash ./deploy.sh
