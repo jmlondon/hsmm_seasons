@@ -24,5 +24,11 @@ Imports:
     parallel,
     dplyr,
     lubridate
-Remotes: github::jmlondon/kotzeb0912, github::jmlondon/uswebr, github::jmlondon/ggthemes
+Suggests: 
+    knitr,
+    rmarkdown
+Remotes: 
+    github::jmlondon/kotzeb0912, 
+    github::jmlondon/uswebr, 
+    github::jmlondon/ggthemes
 License: CC0
