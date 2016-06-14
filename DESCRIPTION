@@ -23,7 +23,8 @@ Imports:
     crawl,
     parallel,
     dplyr,
-    lubridate
+    lubridate,
+    doParallel
 Suggests: 
     knitr,
     rmarkdown
