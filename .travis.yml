@@ -10,4 +10,5 @@ env:
 r_binary_packages: 
   - sp
   - rgdal
+  - mhsmm
 script: bash ./deploy.sh
