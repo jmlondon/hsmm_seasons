@@ -25,7 +25,7 @@ Imports:
     dplyr,
     lubridate,
     doParallel,
-    mshmm
+    mhsmm
 Suggests: 
     knitr,
     rmarkdown
