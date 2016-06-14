@@ -1,3 +1,5 @@
 .Rproj.user
 .Rhistory
 .RData
+travis_deploy_key
+travis_deploy_key.pub
