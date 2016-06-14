@@ -1,5 +1,5 @@
 language: R
-sudo: false
+sudo: required
 before_install:
 - openssl aes-256-cbc -K $encrypted_d7a23806da06_key -iv $encrypted_d7a23806da06_iv
   -in travis_deploy_key.enc -out travis_deploy_key -d
