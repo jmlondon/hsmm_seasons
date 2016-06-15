@@ -11,3 +11,7 @@ r_binary_packages:
   - sp
   - rgdal
 script: bash ./deploy.sh
+branches:
+  only:
+    - master
+    - develop
