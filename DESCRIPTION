@@ -32,5 +32,6 @@ Suggests:
 Remotes: 
     github::jmlondon/kotzeb0912, 
     github::jmlondon/uswebr, 
-    github::jmlondon/ggthemes
+    github::jmlondon/ggthemes,
+    github::adletaw/captioner
 License: CC0
