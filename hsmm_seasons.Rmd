@@ -86,13 +86,15 @@ deployments <- kotzeb0912_locs %>%
 
 ## Methods and Analysis
 
-Between 2009 and 2012 seven adult bearded seals were captured and released with bio-logging devices that provide measures of movement, dive behavior, and hourly wet-dry proportions. The tags were deployed in June and July with deployment duration ranging from `r min(deployments$duration)` to `r max(deployments$duration)` days (mean = `r mean(deployments$duration)` days). Data from these deployments are available as an R data package and we will use these data to demonstrate the application of multivariate hidden semi-Markov models to identify seasonal states from real world telemetry data.
+Between 2009 and 2012 seven adult bearded seals were captured and released with bio-logging devices that provide measures of movement, dive behavior, and hourly wet-dry proportions. The tags were deployed in June and July with deployment duration ranging from `r min(deployments$duration)` to `r max(deployments$duration)` days (median = `r median(deployments$duration)` days). Data from these deployments are available as an R data package and we will use these data to demonstrate the application of multivariate hidden semi-Markov models to identify seasonal states from real world telemetry data.
 
 The `kotzeb0912` R package contains telemetry data from 14 deployments on seven adult bearded seals. Each seal was deployed with two tags --- one adhered to the hair on the head of the animal and another attached to the flipper. The flipper attached tags were removed from the dataset for this analysis. All of the telemetry data was transmitted via the Argos satellite system and processed through the Wildlife Computers Data Portal. The location data consist of coordinates estimated via Argos along with the associated error ellipses as well as locations derived from the FastLoc GPS sensor on three of the deployments. Error for the FastLoc GPS coordinates was presumed to be a fixed value of 50 meters. Behavior data of interest for this analysis includes histograms of maximum dive depths within a 6 hour period and the percentage of each hour the tag was dry.
 
 ### Modeling Movement and Aligning Data
 
-The `crawl` R package was employed to model seal movement and estimate locations every 6 hours throughout the deployment. Prior to modeling the movement with `crawl`, the `argosfilter` package provided a course speed filter (vmax=3.5 m/s) to eliminate obvious outlier locations. Predicted locations are specified from the posterior mean and variance of the model track and coincide with the mid-point of the 6-hour dive behavior histograms. The haul-out behavior timelines are provided as hourly percent-dry values and were grouped into 6-hour blocks that are centered on our 6-hourly predictions. Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, the number of dives across all bins less than 10 meters are summed. The expectation is this will accurately represent the number of foraging dives over a 6 hour period. 
+A key parameter in the evaluation of seasonal states will be movement --- specifically, the displacement in x and y coordinates at each time step. Location data from bio-logging devices are provided at irregular time steps and with varying error associated with each location estimate. The `crawl` R package was employed to model seal movement and estimate locations every 6 hours throughout the deployment. Prior to modeling the movement with `crawl`, the `argosfilter` package provided a course speed filter (vmax=3.5 m/s) to eliminate obvious outlier locations. Predicted locations are specified from the posterior mean and variance of the model track and coincide with the mid-point of the 6-hour dive behavior histograms. The lag difference in x and y coordinates provides a measure of northing and easting displacement at each time step. These values will form the basis for our xy-displacement multi-variate normal parameter in the model.
+
+The haul-out behavior timelines are provided as hourly percent-dry values and were grouped into 6-hour blocks that are centered on our 6-hourly predictions. Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, the number of dives across all bins less than 10 meters are summed. The expectation is this will accurately represent the number of foraging dives over a 6 hour period. Both of these behavioral data streams are subjet to periods of missing data.
 
 ```{r merge-tel-data}
 data("kotzeb0912_depths")
@@ -300,10 +302,6 @@ predData <- dplyr::left_join(predData,diveData) %>%
   arrange(deployid,date_time) 
 ```
 
-### Movement Bearing
-
-The lag difference in x and y coordinates provides a measure of northing and easting displacement at each time step. These displacement parameters can be used to, then, determine the compass bearing of each movement step. Compass bearing provides a more user friendly, interpretable description of movement compared to x/y displacement. These values will form the basis for our xy-displacement multi-variate normal parameter in the model.
-
 ```{r xy-displacement, include=FALSE}
 predData <- predData %>% 
   group_by(deployid) %>% 
@@ -342,8 +340,6 @@ predData <- predData %>% rowwise() %>%
   mutate(bearing = anglefun(x_disp,y_disp,as.deg = TRUE)) %>% 
   ungroup()
 ```
-
-### Aligning Deployments
 
 Since these deployments occurred over multiple years, we will want a convenient way to align the deployments. The simplest way to do this is to specify 1 April as the start date for every deployment. We then use the number of days since 1 April as our time scale. 
 
@@ -430,11 +426,11 @@ ggplot(aes(x = days_since_apr1, y = x_disp/1000)) +
 
 `r fig_nums("plot-4")`
 
-### multivariate hidden semi-markov
+### Multivariate Hidden semi-Markov Model
 
 The R package `mhsmm` provides a framework for multi-variate hidden semi-Markov models. The package ships with support for selected emmission distributions (Poisson, normal, and multi-variate normal). For dive behavior (i.e., number of dives below 10m), a Poisson emmission distribution was used and a multi-variate normal was used for the combined x-y displacement. A Bernouli distribution was used for haul-out status. Custom M-step functions were written to extend the package in support of the Bernouli as well as provide support for missing values in the Poisson and multi-variate normal.
 
-```{r mshmm-start-eb}
+```{r mshmm-start-eb, include = FALSE}
 library(mhsmm)
 
 dd <- predData_eb
@@ -448,9 +444,28 @@ dd$x_disp_km = dd$x_disp/1000
 source("mhsmm_functions.R")
 ```
 
-### model selection to determine number of states
+In order to mimic the seasonal progression, we fixed the transition matrix with all superdiagonal entries set to 1 and the remaining entries set to 0. The transition matrix will not be re-estimated and the initial state was set to state 1. Initial values for the other parameters were generally set to a reasonable value and repeated across all states (table 1).
 
-```{r mshmm-init-eb}
+```{r, start-vals, include=FALSE}
+n_states = 6
+
+init_vals <- data.frame(
+  state = c(1:n_states),
+  init_state = c(1, rep(0, n_states - 1)),
+  haul_out = rep(0.05,n_states),
+  number_dives = rep(30, n_states),
+  xy_disp = rep("0,0",n_states),
+  sojourn_type = rep("poisson",n_states),
+  sojourn_lambda = c("60", rep(paste0("nrows/",n_states - 1),
+                               n_states - 1)),
+  sojourn_shift = rep(0,n_states),
+  stringsAsFactors = FALSE
+)
+```
+
+`r kable(init_vals)`
+
+```{r mshmm-init-eb, include = FALSE}
 mshmm_telem_fit <- function(dd, J) {
   nrows <- nrow(dd)
   # Initial vals
@@ -483,7 +498,7 @@ mshmm_telem_fit <- function(dd, J) {
   dens.emission = dtelem.hsmm.mv,
   mstep = mstep.telem.mv
   )
-  
+
   # Fit model
   data = list(x = with(dd,
   as.matrix(dd[, c("ind_dry",
@@ -546,13 +561,10 @@ extract_sum_AIC <- function(fit_list) {
 
 extract_sum_AIC(fit_list)
 
-plot(extract_sum_AIC(fit_list))
-
 ```
 
 
 ```{r mshmm-predict, include=FALSE}
-n_states = 6
 fit_data = list()
 for (id in unique(dd$deployid)) {
   this_fit <- fit_list[[paste0("n_states_",n_states)]][[id]]$fit
@@ -572,13 +584,7 @@ dd_bearded <- dd_fit
 
 ### Adult Bearded Seals
 
-The results of the model fit are provided
-
-```{r fit-summary-eb}
-summary(fit_bearded)
-```
-
-And, we can plot the state assignments for each bearded seal
+We can plot the state assignments for each bearded seal
 
 ```{r plot-5,fig.height=6,echo=FALSE}
 library(ggplot2)
