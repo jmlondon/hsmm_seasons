@@ -444,8 +444,6 @@ dd$ind_dry = ifelse(dd$percent_dry > 100/3, 1, 0)
 dd$y_disp_km = dd$y_disp/1000
 dd$x_disp_km = dd$x_disp/1000
 
-tmp1 = dd#[predData$deployid==id[1],]
-
 ### MHSMM functions
 source("mhsmm_functions.R")
 ```
@@ -453,55 +451,119 @@ source("mhsmm_functions.R")
 ### model selection to determine number of states
 
 ```{r mshmm-init-eb}
-# Number of states
-J = 4
-
-# Initial vals
-init0 = c(1, rep(0, J - 1))
-B0 = list(
-  p = c(0.05,0.05,0.07,0.1),
-  lambda = rep(30, J), 
-  mu = rep(list(c(0,0)), J),
-  sigma = rep(list(20*diag(2)), J)
-)
-P0 <- matrix(0,ncol = J,nrow = J)
-n <- 2
-n1 <- n:ncol(P0)
-P0[seq(n1), n1] <- diag(ncol(P0) - n + 1)
-
-S0 = list(lambda = rep(150, J), 
-          shift = rep(200,J), 
-          type = "poisson")
-
-start_val = hsmmspec(
-  init = init0, 
-  transition = P0, 
-  parms.emission = B0, 
+mshmm_telem_fit <- function(dd, J) {
+  nrows <- nrow(dd)
+  # Initial vals
+  init0 = c(1, rep(0, J - 1))
+  B0 = list(
+  p = rep(0.05,J),
+  lambda = rep(30, J),
+  mu = rep(list(c(0, 0)), J),
+  sigma = rep(list(20 * diag(2)), J)
+  )
+  P0 <- matrix(0, ncol = J, nrow = J)
+  n <- 2
+  n1 <- n:ncol(P0)
+  P0[seq(n1), n1] <- diag(ncol(P0) - n + 1)
+  P0
+  # S0 = list(shape = rep(12, J),
+  # scale = rep(6, J),
+  # type = "gamma")
+  S0 = list(
+    lambda = c(60, rep(nrows/(J - 1),J - 1)),
+    shift = rep(0,J),
+    type = "poisson"
+  )
+  
+  start_val = hsmmspec(
+  init = init0,
+  transition = P0,
+  parms.emission = B0,
   sojourn = S0,
-  dens.emission = dtelem.hsmm.mv, 
+  dens.emission = dtelem.hsmm.mv,
   mstep = mstep.telem.mv
-)
+  )
+  
+  # Fit model
+  data = list(x = with(dd,
+  as.matrix(dd[, c("ind_dry",
+  "num_dives",
+  "x_disp_km",
+  "y_disp_km")])),
+  N = table(dd$deployid))
+  #M <- 600
+  fit = hsmmfit(data,
+  start_val,
+  mstep = mstep.telem.mv,
+  lock.transition = TRUE)
+  
+  pO <- 7
+  pH <- 2
+  npar <- (pO + pH) * J
+  
+  loglik <- tail(fit$loglik, n = 1)
+  
+  fit_AIC = -2 * loglik + 2 * npar
+  
+  mhsmm_telem_fit <- list(
+    id = dd$deployid[1],
+    data = data,
+    fit = fit,
+    nstates = J,
+    npar = npar,
+    loglik = loglik,
+    aic = fit_AIC
+  )
+  return(mhsmm_telem_fit)
+}
+
+fit_list <- list()
+for (id in unique(dd$deployid)) {
+    this_data <- dd %>% filter(deployid == id) %>% 
+    arrange(deployid, date_time)
+    message(id)
+  for (J in 3:8) {
+    fit_list[[paste("n_states",J,sep = "_")]][[id]] <- mshmm_telem_fit(dd = this_data,J)
+    message(J)
+  }
+}
+
+extract_sum_AIC <- function(fit_list) {
+  sum_aics <- vector("numeric",length = length(fit_list))
+  for (i in 1:length(fit_list)) {
+    s <- 0
+    for (id in names(fit_list[[i]])) {
+      if(length(fit_list[[i]][[id]]$aic) == 0) {
+        message("No fit for ",id," ",i + 2," states")
+        next
+      }
+      s <- s + fit_list[[i]][[id]]$aic
+    }
+    sum_aics[i] <- s
+  }
+  return(sum_aics)
+}
+
+extract_sum_AIC(fit_list)
+
+plot(extract_sum_AIC(fit_list))
+
 ```
 
-Now, we can fit the model and predict
 
-```{r mshmm-fit-eb}
-# Fit model
-data = list(x = with(tmp1,
-                     as.matrix(tmp1[,c("ind_dry",
-                                       "num_dives",
-                                       "x_disp_km",
-                                       "y_disp_km")])), 
-            N = table(tmp1$deployid))
-#M <- 600
-fit = hsmmfit(data, start_val, mstep = mstep.telem.mv,
-              lock.transition = TRUE)
+```{r mshmm-predict, include=FALSE}
+n_states = 6
+fit_data = list()
+for (id in unique(dd$deployid)) {
+  this_fit <- fit_list[[paste0("n_states_",n_states)]][[id]]$fit
+  this_data <- fit_list[[paste0("n_states_",n_states)]][[id]]$data
+  state = predict(this_fit,this_data)$s
+  fit_data[[id]]$state <- state
+}
+dd_fit <- bind_cols(dd,bind_rows(fit_data))
+dd_fit$state = as.factor(dd_fit$state)
 
-dd$state = predict(fit, data)$s
-dd$state = as.factor(dd$state)
-
-fit_bearded <- fit
-dd_bearded <- dd
+dd_bearded <- dd_fit
 ```
 
 
@@ -570,7 +632,7 @@ ggplot(data=dd_bearded) +
   geom_histogram(aes(x=bearing,y=..density..,fill=state),binwidth=12) +
   coord_polar() + 
   scale_x_continuous(limits=c(0,360),breaks=seq(0,359, by=45)) +
-  facet_wrap(~state,ncol=2) +
+  facet_wrap(~state,ncol=3) +
   ggtitle(paste("Distribution of Movement and \n",
                 "Compass Bearing Across Seasonal States")) + 
   theme_fivethirtyeight() + scale_fill_ptol()
