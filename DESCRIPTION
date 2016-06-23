@@ -28,7 +28,8 @@ Imports:
     mhsmm
 Suggests: 
     knitr,
-    rmarkdown
+    rmarkdown,
+    pander
 Remotes: 
     github::jmlondon/kotzeb0912, 
     github::jmlondon/uswebr, 

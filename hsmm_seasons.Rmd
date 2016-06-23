@@ -58,6 +58,7 @@ library(lubridate)
 library(ggplot2)
 library(ggthemes)
 library(scales)
+library(pander)
 ```
 
 ## Introduction
@@ -94,7 +95,7 @@ The `kotzeb0912` R package contains telemetry data from 14 deployments on seven 
 
 A key parameter in the evaluation of seasonal states will be movement --- specifically, the displacement in x and y coordinates at each time step. Location data from bio-logging devices are provided at irregular time steps and with varying error associated with each location estimate. The `crawl` R package was employed to model seal movement and estimate locations every 6 hours throughout the deployment. Prior to modeling the movement with `crawl`, the `argosfilter` package provided a course speed filter (vmax=3.5 m/s) to eliminate obvious outlier locations. Predicted locations are specified from the posterior mean and variance of the model track and coincide with the mid-point of the 6-hour dive behavior histograms. The lag difference in x and y coordinates provides a measure of northing and easting displacement at each time step. These values will form the basis for our xy-displacement multi-variate normal parameter in the model.
 
-The haul-out behavior timelines are provided as hourly percent-dry values and were grouped into 6-hour blocks that are centered on our 6-hourly predictions. Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, the number of dives across all bins less than 10 meters are summed. The expectation is this will accurately represent the number of foraging dives over a 6 hour period. Both of these behavioral data streams are subjet to periods of missing data.
+The haul-out behavior timelines are provided as hourly percent-dry values and were grouped into 6-hour blocks that are centered on our 6-hourly predictions. Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, the number of dives across all bins less than 10 meters are summed. The expectation is this will accurately represent the number of foraging dives over a 6 hour period. Both of these behavioral data streams are subjet to periods of missing data. Since these deployments occurred over multiple years, the number of days since 1 April was used as a standard time scale. 
 
 ```{r merge-tel-data}
 data("kotzeb0912_depths")
@@ -341,8 +342,6 @@ predData <- predData %>% rowwise() %>%
   ungroup()
 ```
 
-Since these deployments occurred over multiple years, we will want a convenient way to align the deployments. The simplest way to do this is to specify 1 April as the start date for every deployment. We then use the number of days since 1 April as our time scale. 
-
 ```{r days-since-apr1}
 id_apr1 <- predData %>% 
   group_by(deployid) %>% summarise(start_yr = year(min(date_time))) %>% 
@@ -428,7 +427,7 @@ ggplot(aes(x = days_since_apr1, y = x_disp/1000)) +
 
 ### Multivariate Hidden semi-Markov Model
 
-The R package `mhsmm` provides a framework for multi-variate hidden semi-Markov models. The package ships with support for selected emmission distributions (Poisson, normal, and multi-variate normal). For dive behavior (i.e., number of dives below 10m), a Poisson emmission distribution was used and a multi-variate normal was used for the combined x-y displacement. A Bernouli distribution was used for haul-out status. Custom M-step functions were written to extend the package in support of the Bernouli as well as provide support for missing values in the Poisson and multi-variate normal.
+The R package `mhsmm` provides a framework for multi-variate hidden semi-Markov models. The package provides support for a few selected emmission distributions (Poisson, normal, and multi-variate normal). For dive behavior (i.e., number of dives below 10m), a Poisson emmission distribution was used and a multi-variate normal was used for the combined x-y displacement. A Bernouli distribution was used for haul-out status. Custom M-step functions were written to extend the package in support of the Bernouli as well as provide support for missing values in the Poisson and multi-variate normal.
 
 ```{r mshmm-start-eb, include = FALSE}
 library(mhsmm)
@@ -444,7 +443,7 @@ dd$x_disp_km = dd$x_disp/1000
 source("mhsmm_functions.R")
 ```
 
-In order to mimic the seasonal progression, we fixed the transition matrix with all superdiagonal entries set to 1 and the remaining entries set to 0. The transition matrix will not be re-estimated and the initial state was set to state 1. Initial values for the other parameters were generally set to a reasonable value and repeated across all states (table 1).
+In order to mimic the seasonal progression, we fixed the transition matrix with all superdiagonal entries set to 1 and the remaining entries set to 0. The transition matrix was not be re-estimated and the initial state was set to state 1. Initial values for the other parameters were generally set to a reasonable value and repeated across all states (table 1). One key initial value that diverged from this approach was the sojourn distribution. A shifted Poisson distribution was chosen and the lambda value was set to the number of time steps divided by the number of time steps. This initiates the model with a constant sojourn value distributed evenly across the deployment. However, the adult bearded seals were captured during the later stages of their annual molt. Given the significant behavioral changes associated with molt, the first state is likely to be of a relatively short duration. Thus, we specified a lambda of 40 for the first state regardless of the number of states. 
 
 ```{r, start-vals, include=FALSE}
 n_states = 6
@@ -456,14 +455,16 @@ init_vals <- data.frame(
   number_dives = rep(30, n_states),
   xy_disp = rep("0,0",n_states),
   sojourn_type = rep("poisson",n_states),
-  sojourn_lambda = c("60", rep(paste0("nrows/",n_states - 1),
+  sojourn_lambda = c("40", rep(paste0("nrows/",n_states - 1),
                                n_states - 1)),
   sojourn_shift = rep(0,n_states),
   stringsAsFactors = FALSE
 )
 ```
 
-`r kable(init_vals)`
+```{r, table-init-vals} 
+pander(init_vals)`
+```
 
 ```{r mshmm-init-eb, include = FALSE}
 mshmm_telem_fit <- function(dd, J) {
@@ -485,7 +486,7 @@ mshmm_telem_fit <- function(dd, J) {
   # scale = rep(6, J),
   # type = "gamma")
   S0 = list(
-    lambda = c(60, rep(nrows/(J - 1),J - 1)),
+    lambda = c(40, rep(nrows/(J - 1),J - 1)),
     shift = rep(0,J),
     type = "poisson"
   )
