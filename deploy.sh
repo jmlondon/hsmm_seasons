@@ -33,7 +33,7 @@ rm -rf out/**/* || exit 0
 # Run our compile script
 Rscript ./render.R
 
-if [ $TRAVIS_BRANCH != $TARGET_BRANCH ]; then
+if [ $TRAVIS_BRANCH != $SOURCE_BRANCH ]; then
    echo "Branch other than 'master'. Just build, no push to gh-pages"
    exit 0
 fi
