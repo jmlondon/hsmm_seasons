@@ -35,10 +35,10 @@ output:
 ```{r global-options, include=FALSE}
 # set global chunk options
 library(knitr)
-options(width=80)
-opts_chunk$set(dev="png",
-               dev.args=list(type="cairo",antialias="none"),
-               dpi=192,warning=FALSE, message=FALSE)
+options(width = 80)
+opts_chunk$set(dev = "png",
+               dev.args = list(type = "cairo",antialias = "none"),
+               dpi = 192,warning = FALSE, message = FALSE)
 
 library(captioner)
 fig_nums <- captioner()
@@ -97,12 +97,12 @@ A key parameter in the evaluation of seasonal states will be movement --- specif
 
 The haul-out behavior timelines are provided as hourly percent-dry values and were grouped into 6-hour blocks that are centered on our 6-hourly predictions. Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, the number of dives across all bins less than 10 meters are summed. The expectation is this will accurately represent the number of foraging dives over a 6 hour period. Both of these behavioral data streams are subjet to periods of missing data. Since these deployments occurred over multiple years, the number of days since 1 April was used as a standard time scale. 
 
-```{r merge-tel-data}
+```{r merge-tel-data, include=FALSE}
 data("kotzeb0912_depths")
 data("kotzeb0912_timelines")
 
 kotzeb0912_locs <- kotzeb0912_locs %>% 
-  dplyr::select(deployid,date_time=unique_posix,instr,
+  dplyr::select(deployid,date_time = unique_posix,instr,
                 quality,latitude,longitude,error_radius,
                 error_semimajor_axis,
                 error_semiminor_axis,
@@ -111,11 +111,11 @@ kotzeb0912_locs <- kotzeb0912_locs %>%
 
 kotzeb0912_depths <- kotzeb0912_depths %>% 
   dplyr::filter(deployid %in% kotzeb0912_locs$deployid) %>% 
-  dplyr::rename(date_time=datadatetime)
+  dplyr::rename(date_time = datadatetime)
 
 kotzeb0912_timelines <- kotzeb0912_timelines %>% 
   dplyr::filter(deployid %in% kotzeb0912_locs$deployid) %>% 
-  dplyr::rename(date_time=datadatetime)
+  dplyr::rename(date_time = datadatetime)
 
 locs <- kotzeb0912_locs
 depths <- kotzeb0912_depths
@@ -136,22 +136,22 @@ drytimes <- drytimes %>%
 ```
 
 
-```{r argos-filter}
+```{r argos-filter, include=FALSE}
 # speedfilter using the paralell package for multi-core speed
-cfilter<-mclapply(split(locs,locs$deployid),function(x) sdafilter(
-  lat=x$latitude, lon=x$longitude, dtime=x$date_time,
-  lc=x$quality, ang=-1,vmax=3.5),mc.preschedule=F,mc.cores=3)
-cfilter<-do.call("c",cfilter)
-cfilter<-as.vector(cfilter)
+cfilter <- mclapply(split(locs,locs$deployid),function(x) sdafilter(
+  lat = x$latitude, lon = x$longitude, dtime = x$date_time,
+  lc = x$quality, ang = -1,vmax = 3.5),mc.preschedule = F,mc.cores = 3)
+cfilter <- do.call("c",cfilter)
+cfilter <- as.vector(cfilter)
 locs$filtered <- cfilter
 
-locs_data <- filter(locs,filtered=="not") %>% arrange(deployid,date_time) %>% 
+locs_data <- filter(locs,filtered == "not") %>% arrange(deployid,date_time) %>% 
   as.data.frame(.)
 
 ```
 
 
-```{r gps-data}
+```{r gps-data, include=FALSE}
 data("kotzeb0912_gps")
 
 kotzeb0912_gps <- kotzeb0912_gps %>% 
@@ -163,28 +163,28 @@ kotzeb0912_gps <- kotzeb0912_gps %>%
 locs_data <- locs_data %>% bind_rows(kotzeb0912_gps) %>% 
   arrange(deployid,date_time)
 
-locs_data_ellipse<- filter(locs_data,!is.na(error_semimajor_axis)) %>% 
+locs_data_ellipse <- filter(locs_data,!is.na(error_semimajor_axis)) %>% 
   arrange(deployid,date_time)
 
 ```
 
-```{r crawl-model-ellipse, results='hide'}
+```{r crawl-model-ellipse, include=FALSE}
 data <- as.data.frame(locs_data_ellipse)
 coordinates(data) = ~longitude+latitude
 proj4string(data) = CRS("+proj=longlat +datum=WGS84")
 
-data=spTransform(data, CRS("+init=epsg:3571"))
+data = spTransform(data, CRS("+init=epsg:3571"))
 
 ## Loop over PTT and fit CTCRW models
 ids = unique(data@data$deployid)
 
 library(doParallel)
 n.cores <- detectCores()
-registerDoParallel(cores=3)
+registerDoParallel(cores = 3)
 
 model_fits_ellipse <-
   foreach(i = 1:length(ids)) %dopar% {
-  id_data = subset(data,deployid==ids[i])
+  id_data = subset(data,deployid == ids[i])
   diag_data = model.matrix(
       ~ error_semimajor_axis + error_semiminor_axis + error_ellipse_orientation,
       id_data@data
@@ -223,23 +223,23 @@ names(model_fits_ellipse) <- ids
 ```
 
 
-```{r message=FALSE}
+```{r crawl-predict,include=FALSE}
 predData_ellipse <- foreach(i = 1:length(model_fits_ellipse)) %dopar% {
-  if(!inherits(model_fits_ellipse[[i]],"try-error")) {
+  if (!inherits(model_fits_ellipse[[i]],"try-error")) {
   model_fits_ellipse[[i]]$data$date_time <- lubridate::with_tz(
     model_fits_ellipse[[i]]$data$date_time,"UTC")
   predTimes <- seq(
     lubridate::ceiling_date(min(model_fits_ellipse[[i]]$data$date_time),"day"),
     lubridate::floor_date(max(model_fits_ellipse[[i]]$data$date_time),"day"),
     "6 hours")
-  tmp = crwPredict(model_fits_ellipse[[i]], predTime=predTimes)
+  tmp = crwPredict(model_fits_ellipse[[i]], predTime = predTimes)
   } else return(NA)
 }
 
 predData_ellipse <- Filter(function(x) inherits(x,"crwPredict"),predData_ellipse)
 
 predData_ellipse <- dplyr::bind_rows(predData_ellipse) %>% 
-  filter(locType=="p")
+  filter(locType == "p")
 
 predData <- predData_ellipse
 
@@ -262,18 +262,18 @@ timelineData <- foreach(i = 1:length(ids)) %dopar% {
   t_seq <- data.frame(date_time = seq(
     lubridate::floor_date(min(t_dat$date_time),"day"),
     lubridate::floor_date(max(t_dat$date_time),"day"),
-    "1 hour"),deployid=ids[i])
-  t_dat <- merge(t_dat,t_seq,all=TRUE)
-  rep_len <- ceiling((nrow(t_dat)-3)/6)
-  t_group <- c(rep(1,3),rep(2:rep_len,each=6))
-  t_group <- data.frame(group=t_group[1:nrow(t_dat)])
-  t_dat <-cbind(t_dat,t_group) %>% filter(!is.na(group))
+    "1 hour"),deployid = ids[i])
+  t_dat <- merge(t_dat,t_seq,all = TRUE)
+  rep_len <- ceiling((nrow(t_dat) - 3)/6)
+  t_group <- c(rep(1,3),rep(2:rep_len,each = 6))
+  t_group <- data.frame(group = t_group[1:nrow(t_dat)])
+  t_dat <- cbind(t_dat,t_group) %>% filter(!is.na(group))
 }
 
 timelineData <- dplyr::bind_rows(timelineData) %>% 
   group_by(deployid,group) %>% 
-  summarise(percent_dry=mean(percent_dry,na.rm=TRUE),
-            date_time=ceiling_date(median(date_time),"hour")) %>% 
+  summarise(percent_dry = mean(percent_dry,na.rm = TRUE),
+            date_time = ceiling_date(median(date_time),"hour")) %>% 
   select(deployid,date_time,percent_dry) %>% 
   filter(!is.nan(percent_dry))
 ```
@@ -286,7 +286,7 @@ predData <- dplyr::left_join(predData,
   tbl_df() %>%
   select(deployid,species,predTimes,mu.x,mu.y,percent_dry) %>% 
   arrange(deployid, predTimes) %>% 
-  rename(date_time=predTimes)
+  rename(date_time = predTimes)
 ```
 
 
@@ -296,7 +296,7 @@ diveData <- depths %>%
   filter(bin != "bin1") %>% 
   mutate(date_time = date_time + hours(3)) %>% 
   group_by(deployid,date_time) %>% 
-  summarise(num_dives=sum(num_dives,na.rm=TRUE)) %>% 
+  summarise(num_dives = sum(num_dives,na.rm = TRUE)) %>% 
   ungroup()
 
 predData <- dplyr::left_join(predData,diveData) %>% 
@@ -315,7 +315,7 @@ predData <- predData %>%
 
 
 ```{r compass-bearing, include=FALSE}
-anglefun <- function(xx,yy,bearing = TRUE,as.deg = FALSE){
+anglefun <- function(xx,yy,bearing = TRUE, as.deg = FALSE){
   ## calculates the compass bearing of the line between two points
   ## xx and yy are the differences in x and y coordinates between two points
   ## Options:
@@ -342,7 +342,7 @@ predData <- predData %>% rowwise() %>%
   ungroup()
 ```
 
-```{r days-since-apr1}
+```{r days-since-apr1, include=FALSE}
 id_apr1 <- predData %>% 
   group_by(deployid) %>% summarise(start_yr = year(min(date_time))) %>% 
   mutate(apr1 = lubridate::ymd(paste(start_yr,"04-01",sep = "-"))) %>% 
@@ -375,11 +375,14 @@ fig_nums(name = "plot-3",
          caption = "estimated y-displacement per six hours based on movements of seven adult bearded seals")
 fig_nums(name = "plot-4",
          caption = "estimated x-displacement per six hours based on movements of seven adult bearded seals")
+fig_nums(name = "plot-5",
+         caption = "comparison of AIC values from the mhsmm model fit for each deployment and varying numbers of states (3:8)")
+fig_nums(name = "plot-6",
+         caption = "comparison of AIC values from the mhsmm model fit summed across deployments for varying numbers of states (3:8)")
 ```
 
 ```{r plot-1, fig.height = 8,echo=FALSE}
-predData_eb <- predData %>% filter(species == "Bearded seal")
-p1 <- ggplot(predData_eb, aes(x = days_since_apr1, y = ho_binary)) + 
+p1 <- ggplot(predData, aes(x = days_since_apr1, y = ho_binary)) + 
   geom_point(alpha = 0.2,size = 3,aes(colour = factor(ho_binary))) + 
   facet_grid(deployid ~ .) + 
   ggtitle("haul-out status (bearded seal)") +
@@ -390,7 +393,7 @@ p1
 `r fig_nums("plot-1")`
 
 ```{r plot-2, fig.height = 8,echo=FALSE}
-p2 <- ggplot(predData_eb, aes(x = days_since_apr1, y = num_dives)) + 
+p2 <- ggplot(predData, aes(x = days_since_apr1, y = num_dives)) + 
   geom_point(alpha = 0.2) + facet_grid(deployid ~ .) + 
   ggtitle("number of dives below 10m (bearded seal)") +
   theme_fivethirtyeight() + scale_colour_ptol()
@@ -400,7 +403,7 @@ p2
 `r fig_nums("plot-2")`
 
 ```{r plot-3, fig.height = 8, echo=FALSE}
-predData_eb %>% mutate(direction = ifelse(
+predData %>% mutate(direction = ifelse(
   y_disp >= 0, "north","south")) %>% 
 
 ggplot(aes(x = days_since_apr1, y = y_disp/1000)) +
@@ -413,7 +416,7 @@ ggplot(aes(x = days_since_apr1, y = y_disp/1000)) +
 `r fig_nums("plot-3")`
 
 ```{r plot-4, fig.height = 8,echo=FALSE}
-predData_eb %>% mutate(direction = ifelse(
+predData %>% mutate(direction = ifelse(
   y_disp >= 0, "west","east")) %>% 
 
 ggplot(aes(x = days_since_apr1, y = x_disp/1000)) +
@@ -432,9 +435,8 @@ The R package `mhsmm` provides a framework for multi-variate hidden semi-Markov 
 ```{r mshmm-start-eb, include = FALSE}
 library(mhsmm)
 
-dd <- predData_eb
+dd <- predData
 
-id = levels(factor(dd$deployid))
 dd$ind_dry = ifelse(dd$percent_dry > 100/3, 1, 0)
 dd$y_disp_km = dd$y_disp/1000
 dd$x_disp_km = dd$x_disp/1000
@@ -443,28 +445,24 @@ dd$x_disp_km = dd$x_disp/1000
 source("mhsmm_functions.R")
 ```
 
-In order to mimic the seasonal progression, we fixed the transition matrix with all superdiagonal entries set to 1 and the remaining entries set to 0. The transition matrix was not be re-estimated and the initial state was set to state 1. Initial values for the other parameters were generally set to a reasonable value and repeated across all states (table 1). One key initial value that diverged from this approach was the sojourn distribution. A shifted Poisson distribution was chosen and the lambda value was set to the number of time steps divided by the number of time steps. This initiates the model with a constant sojourn value distributed evenly across the deployment. However, the adult bearded seals were captured during the later stages of their annual molt. Given the significant behavioral changes associated with molt, the first state is likely to be of a relatively short duration. Thus, we specified a lambda of 40 for the first state regardless of the number of states. 
+In order to mimic the seasonal progression, we fixed the transition matrix with all superdiagonal entries set to 1 and the remaining entries set to 0. The transition matrix was not be re-estimated and the initial state was set to state 1. Initial values for the other parameters were generally set to a reasonable value and repeated across all states (table 1). A shifted Poisson distribution was chosen for the initial sojourn values and the lambda value was set to the number of time steps divided by the number of time steps. This initiates the model with a constant sojourn value distributed evenly across the deployment. The shift parameter was set to 0 for all states.
 
 ```{r, start-vals, include=FALSE}
 n_states = 6
 
 init_vals <- data.frame(
   state = c(1:n_states),
-  init_state = c(1, rep(0, n_states - 1)),
-  haul_out = rep(0.05,n_states),
-  number_dives = rep(30, n_states),
+  haul_out = rep(0.1,n_states),
+  n_dives = rep(30, n_states),
   xy_disp = rep("0,0",n_states),
-  sojourn_type = rep("poisson",n_states),
-  sojourn_lambda = c("40", rep(paste0("nrows/",n_states - 1),
-                               n_states - 1)),
-  sojourn_shift = rep(0,n_states),
+  S_type = rep("poisson",n_states),
+  S_lambda = rep(paste0("nrows/",n_states),
+                               n_states),
+  S_shift = rep(0,n_states),
   stringsAsFactors = FALSE
 )
 ```
 
-```{r, table-init-vals} 
-pander(init_vals)`
-```
 
 ```{r mshmm-init-eb, include = FALSE}
 mshmm_telem_fit <- function(dd, J) {
@@ -472,7 +470,7 @@ mshmm_telem_fit <- function(dd, J) {
   # Initial vals
   init0 = c(1, rep(0, J - 1))
   B0 = list(
-  p = rep(0.05,J),
+  p = rep(0.1,J),
   lambda = rep(30, J),
   mu = rep(list(c(0, 0)), J),
   sigma = rep(list(20 * diag(2)), J)
@@ -486,7 +484,7 @@ mshmm_telem_fit <- function(dd, J) {
   # scale = rep(6, J),
   # type = "gamma")
   S0 = list(
-    lambda = c(40, rep(nrows/(J - 1),J - 1)),
+    lambda = c(rep(nrows/(J),J)),
     shift = rep(0,J),
     type = "poisson"
   )
@@ -543,13 +541,49 @@ for (id in unique(dd$deployid)) {
     message(J)
   }
 }
+```
+
+
+
+```{r mshmm-predict, include=FALSE}
+fit_data = list()
+for (id in unique(dd$deployid)) {
+  this_fit <- fit_list[[paste0("n_states_",n_states)]][[id]]$fit
+  this_data <- fit_list[[paste0("n_states_",n_states)]][[id]]$data
+  fit_data[[id]]$state <- this_fit$yhat
+}
+dd_fit <- bind_cols(dd,bind_rows(fit_data))
+dd_fit$state = as.factor(dd_fit$state)
+
+```
+
+### Model Selection
+
+The key, unknown parameter in this analysis is the number of seasonal states. In an ideal situation, we would have some a priori knowledge regarding number of seasonal states and our modeling effort would focus on the timing and duration of those known number of states. For some, well-studied species, this might be possible. Even for less studied species like bearded seals, we know their seasonal cycle includes a period for pupping and breeding in approximately April/May, followed by a molt period that can extend into July. The remainder of the year is less understood and, in the case of this study, the bio-logger deployments mostly cover this less-known period.
+
+We used AIC as a possible indicator of an optimal number of seasonal states. The number of states was varied from three to eight and AIC was evaluated for each individual deployment as well as a sum across all deployments.
+
+```{r, model-selection-aic,include=FALSE}
+
+extract_AIC_vals <- function(fit_list) {
+  fit_data <- list()
+  for (i in 1:length(fit_list)) {
+    for (id in names(fit_list[[i]])) {
+      fit_data[[paste0(i + 2,id)]]$id = id
+      fit_data[[paste0(i + 2,id)]]$states = i + 2
+      fit_data[[paste0(i + 2,id)]]$aic = fit_list[[i]][[id]]$aic
+    }
+  }
+  fit_data <- bind_rows(fit_data)
+  return(fit_data)
+}
 
 extract_sum_AIC <- function(fit_list) {
   sum_aics <- vector("numeric",length = length(fit_list))
   for (i in 1:length(fit_list)) {
     s <- 0
     for (id in names(fit_list[[i]])) {
-      if(length(fit_list[[i]][[id]]$aic) == 0) {
+      if (length(fit_list[[i]][[id]]$aic) == 0) {
         message("No fit for ",id," ",i + 2," states")
         next
       }
@@ -561,35 +595,46 @@ extract_sum_AIC <- function(fit_list) {
 }
 
 extract_sum_AIC(fit_list)
-
+aic_vals <- extract_AIC_vals(fit_list)
+aic_vals <- aic_vals %>% mutate(states = as.factor(states),
+                                id = as.factor(id))
 ```
 
-
-```{r mshmm-predict, include=FALSE}
-fit_data = list()
-for (id in unique(dd$deployid)) {
-  this_fit <- fit_list[[paste0("n_states_",n_states)]][[id]]$fit
-  this_data <- fit_list[[paste0("n_states_",n_states)]][[id]]$data
-  state = predict(this_fit,this_data)$s
-  fit_data[[id]]$state <- state
-}
-dd_fit <- bind_cols(dd,bind_rows(fit_data))
-dd_fit$state = as.factor(dd_fit$state)
-
-dd_bearded <- dd_fit
+```{r, plot-5-indiv-aic,fig.height = 4,echo=FALSE}
+ggplot(data = aic_vals,aes(y=aic,x=states,colour=id)) + 
+  geom_point() + theme_fivethirtyeight() + scale_color_ptol() +
+  ggtitle("AIC Values for Each Deployment Across 3:8 Seasonal States")
 ```
 
+`r fig_nums("plot-5")`
 
+```{r, plot-6-sum-aic,fig.height = 4,echo=FALSE}
+aic_vals %>% 
+  group_by(states) %>% summarize(sum_aic = sum(aic)) %>% 
+ggplot(aes(y=sum_aic,x=states)) + 
+  geom_point() + theme_fivethirtyeight() + scale_color_ptol() +
+  ggtitle("Summed AIC Values Across 3:8 Seasonal States")
+```
 
-## Results
+`r fig_nums("plot-6")`
+
+Relying on the summed AIC values alone would suggest eight (or more) seasonal states. However, with that many states it becomes difficult to assign ecological and behavioral meaning to those states. There are also valid concerns regarding the applicability of AIC as a model selection tool for hidden-Markov models as well as a tendency towards over-fitting. 
+
+In the end, a combination of ecological intuition, some knowledge of bearded seal behavior and ecology, and the pattern in AIC values led us to settle on 6 seasonal states. This seems reasonable given our understanding bearded seal ecology and the largest delta-AIC value was observed when increasing from 5 to 6 states.
+
+### Model Fitting and State Prediction
+
+```{r, table-init-vals, echo=FALSE} 
+pander(init_vals)
+```
 
 ### Adult Bearded Seals
 
 We can plot the state assignments for each bearded seal
 
-```{r plot-5,fig.height=6,echo=FALSE}
+```{r plot-7,fig.height=6,echo=FALSE}
 library(ggplot2)
-ggplot(data=dd_bearded,aes(x=days_since_apr1,y="")) + 
+ggplot(data=dd_fit,aes(x=days_since_apr1,y="")) + 
   geom_tile(aes(fill=state)) + 
   facet_wrap(~deployid, ncol=1) + 
    theme(axis.text.y = element_blank(),
@@ -601,8 +646,8 @@ ggplot(data=dd_bearded,aes(x=days_since_apr1,y="")) +
 
 We can also combine the state assignments across our tagged seals by taking the majority state for each time step. The color transparency is set to the proportion of animals represented by that majority state. Note that, some states may not be present in the combined graph.
 
-```{r plot-6, fig.height=4, echo=FALSE}
-combo <- dd_bearded %>% 
+```{r plot-8, fig.height=4, echo=FALSE}
+combo <- dd_fit %>% 
   group_by(days_since_apr1,state) %>% 
   summarise(counter = n()) %>% 
   group_by(days_since_apr1) %>% 
@@ -610,7 +655,7 @@ combo <- dd_bearded %>%
 
 ggplot(data=combo,aes(x=days_since_apr1,y=" ")) + 
   geom_tile(aes(fill=state,alpha=counter/7)) +
-  scale_fill_discrete(limits=levels(dd_bearded$state),drop=TRUE) +
+  scale_fill_discrete(limits=levels(dd_fit$state),drop=TRUE) +
   scale_alpha(guide = 'none') + theme_fivethirtyeight() +
    theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
@@ -620,22 +665,22 @@ ggplot(data=combo,aes(x=days_since_apr1,y=" ")) +
 
 Now that we have some seasonal states assigned, we can examine the distribution of various behaviors across those different states.
 
-```{r plot-7, echo=FALSE}
-ggplot(data=dd_bearded %>% filter(percent_dry>3),aes(x=percent_dry)) +
+```{r plot-9, echo=FALSE}
+ggplot(data=dd_fit %>% filter(percent_dry>3),aes(x=percent_dry)) +
   geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
   ggtitle("Distribution of Percent Dry Across Seasonal States") +
   theme_fivethirtyeight() + scale_fill_ptol()
 ```
 
-```{r plot-8, echo=FALSE}
-ggplot(data=dd_bearded %>% filter(num_dives<150),aes(x=num_dives)) +
+```{r plot-10, echo=FALSE}
+ggplot(data=dd_fit %>% filter(num_dives<150),aes(x=num_dives)) +
   geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
   ggtitle("Distribution of Number of Dives Across Seasonal States") +
   theme_fivethirtyeight() + scale_fill_ptol()
 ```
 
-```{r plot-9, fig.height=7, echo=FALSE}
-ggplot(data=dd_bearded) +
+```{r plot-11, fig.height=7, echo=FALSE}
+ggplot(data=dd_fit) +
   geom_histogram(aes(x=bearing,y=..density..,fill=state),binwidth=12) +
   coord_polar() + 
   scale_x_continuous(limits=c(0,360),breaks=seq(0,359, by=45)) +
