@@ -553,7 +553,7 @@ for (id in unique(dd$deployid)) {
   fit_data[[id]]$state <- predict(this_fit,this_data)$s
 }
 dd_fit <- bind_cols(dd,bind_rows(fit_data))
-dd_fit$state = as.factor(dd_fit$state)
+#dd_fit$state = as.factor(dd_fit$state)
 
 ```
 
