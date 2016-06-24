@@ -3,3 +3,7 @@
 .RData
 travis_deploy_key
 travis_deploy_key.pub
+hsmm_seasons_files/
+hsmm_seasons.md
+hsmm_seasons.html
+predData.rda
