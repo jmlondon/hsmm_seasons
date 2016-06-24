@@ -448,7 +448,7 @@ source("mhsmm_functions.R")
 In order to mimic the seasonal progression, we fixed the transition matrix with all superdiagonal entries set to 1 and the remaining entries set to 0. The transition matrix was not be re-estimated and the initial state was set to state 1. Initial values for the other parameters were generally set to a reasonable value and repeated across all states (table 1). A shifted Poisson distribution was chosen for the initial sojourn values and the lambda value was set to the number of time steps divided by the number of time steps. This initiates the model with a constant sojourn value distributed evenly across the deployment. The shift parameter was set to 0 for all states.
 
 ```{r, start-vals, include=FALSE}
-n_states = 6
+n_states = 5
 
 init_vals <- data.frame(
   state = c(1:n_states),
@@ -515,9 +515,9 @@ mshmm_telem_fit <- function(dd, J) {
   pH <- 2
   npar <- (pO + pH) * J
   
-  loglik <- tail(fit$loglik, n = 1)
+  loglik_last <- tail(fit$loglik, n = 1)
   
-  fit_AIC = -2 * loglik + 2 * npar
+  fit_AIC = -2 * loglik_last + 2 * npar
   
   mhsmm_telem_fit <- list(
     id = dd$deployid[1],
@@ -525,7 +525,7 @@ mshmm_telem_fit <- function(dd, J) {
     fit = fit,
     nstates = J,
     npar = npar,
-    loglik = loglik,
+    loglik = fit$loglik,
     aic = fit_AIC
   )
   return(mhsmm_telem_fit)
@@ -539,22 +539,10 @@ for (id in unique(dd$deployid)) {
   for (J in 3:8) {
     fit_list[[paste("n_states",J,sep = "_")]][[id]] <- mshmm_telem_fit(dd = this_data,J)
     message(J)
+    message(tail(fit_list[[paste("n_states",J,sep = "_")]][[id]]$loglik,
+                 n = 5))
   }
 }
-```
-
-
-
-```{r mshmm-predict, include=FALSE}
-fit_data = list()
-for (id in unique(dd$deployid)) {
-  this_fit <- fit_list[[paste0("n_states_",n_states)]][[id]]$fit
-  this_data <- fit_list[[paste0("n_states_",n_states)]][[id]]$data
-  fit_data[[id]]$state <- predict(this_fit,this_data)$s
-}
-dd_fit <- bind_cols(dd,bind_rows(fit_data))
-#dd_fit$state = as.factor(dd_fit$state)
-
 ```
 
 ### Model Selection
@@ -620,12 +608,25 @@ ggplot(aes(y=sum_aic,x=states)) +
 
 Relying on the summed AIC values alone would suggest eight (or more) seasonal states. However, with that many states it becomes difficult to assign ecological and behavioral meaning to those states. There are also valid concerns regarding the applicability of AIC as a model selection tool for hidden-Markov models as well as a tendency towards over-fitting. 
 
-In the end, a combination of ecological intuition, some knowledge of bearded seal behavior and ecology, and the pattern in AIC values led us to settle on 6 seasonal states. This seems reasonable given our understanding bearded seal ecology and the largest delta-AIC value was observed when increasing from 5 to 6 states.
+In the end, a combination of ecological intuition, some knowledge of bearded seal behavior and ecology, and the pattern in AIC values led us to settle on 5 seasonal states. This seems reasonable given our understanding of bearded seal ecology and exploration of additional states resulted in less descrimination when examined against the underlying data.
 
 ### Model Fitting and State Prediction
 
 ```{r, table-init-vals, echo=FALSE} 
 pander(init_vals)
+```
+
+```{r mshmm-predict, include=FALSE}
+fit_predict = list()
+for (id in unique(dd$deployid)) {
+  this_fit <- fit_list[[paste0("n_states_",n_states)]][[id]]$fit
+  this_data <- fit_list[[paste0("n_states_",n_states)]][[id]]$data
+  fit_predict[[id]]$state <- predict(this_fit,this_data)$s
+}
+fit_predict <- dplyr::bind_rows(fit_predict)
+fit_predict <- dplyr::bind_cols(dd,fit_predict) %>% 
+  mutate(state = as.factor(state))
+
 ```
 
 ### Adult Bearded Seals
@@ -634,9 +635,9 @@ We can plot the state assignments for each bearded seal
 
 ```{r plot-7,fig.height=6,echo=FALSE}
 library(ggplot2)
-ggplot(data=dd_fit,aes(x=days_since_apr1,y="")) + 
-  geom_tile(aes(fill=state)) + 
-  facet_wrap(~deployid, ncol=1) + 
+ggplot(data = fit_predict,aes(x=days_since_apr1,y = "")) + 
+  geom_tile(aes(fill = state)) + 
+  facet_wrap(~deployid, ncol = 1) + 
    theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank()) +
@@ -647,44 +648,43 @@ ggplot(data=dd_fit,aes(x=days_since_apr1,y="")) +
 We can also combine the state assignments across our tagged seals by taking the majority state for each time step. The color transparency is set to the proportion of animals represented by that majority state. Note that, some states may not be present in the combined graph.
 
 ```{r plot-8, fig.height=4, echo=FALSE}
-combo <- dd_fit %>% 
+combo <- fit_predict %>% 
   group_by(days_since_apr1,state) %>% 
   summarise(counter = n()) %>% 
   group_by(days_since_apr1) %>% 
   filter(counter == max(counter))
 
-ggplot(data=combo,aes(x=days_since_apr1,y=" ")) + 
-  geom_tile(aes(fill=state,alpha=counter/7)) +
-  scale_fill_discrete(limits=levels(dd_fit$state),drop=TRUE) +
+ggplot(data = combo,aes(x = days_since_apr1,y = " ")) + 
+  geom_tile(aes(fill = state,alpha = counter/7)) +
   scale_alpha(guide = 'none') + theme_fivethirtyeight() +
    theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank()) +
-  ggtitle("Combined Seasonal State Assignments Across 7 Adult Bearded Seals") + scale_fill_ptol()
+  ggtitle("Combined Seasonal State Assignments Across 7 Adult Bearded Seals") + scale_fill_ptol(limits = levels(dd_fit$state),drop = TRUE)
 ```
 
 Now that we have some seasonal states assigned, we can examine the distribution of various behaviors across those different states.
 
 ```{r plot-9, echo=FALSE}
-ggplot(data=dd_fit %>% filter(percent_dry>3),aes(x=percent_dry)) +
-  geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
+ggplot(data = fit_predict %>% filter(percent_dry > 3),aes(x = percent_dry)) +
+  geom_density(aes(fill = state),size = 0) + facet_wrap(~state) +
   ggtitle("Distribution of Percent Dry Across Seasonal States") +
   theme_fivethirtyeight() + scale_fill_ptol()
 ```
 
 ```{r plot-10, echo=FALSE}
-ggplot(data=dd_fit %>% filter(num_dives<150),aes(x=num_dives)) +
-  geom_density(aes(fill=state),size=0) + facet_wrap(~state) +
+ggplot(data = fit_predict %>% filter(num_dives < 150),aes(x = num_dives)) +
+  geom_density(aes(fill = state),size = 0) + facet_wrap(~state) +
   ggtitle("Distribution of Number of Dives Across Seasonal States") +
   theme_fivethirtyeight() + scale_fill_ptol()
 ```
 
 ```{r plot-11, fig.height=7, echo=FALSE}
-ggplot(data=dd_fit) +
-  geom_histogram(aes(x=bearing,y=..density..,fill=state),binwidth=12) +
+ggplot(data = fit_predict) +
+  geom_histogram(aes(x = bearing,y = ..density..,fill = state),binwidth = 12) +
   coord_polar() + 
-  scale_x_continuous(limits=c(0,360),breaks=seq(0,359, by=45)) +
-  facet_wrap(~state,ncol=3) +
+  scale_x_continuous(limits = c(0,360),breaks = seq(0,359, by = 45)) +
+  facet_wrap(~state,ncol = 3) +
   ggtitle(paste("Distribution of Movement and \n",
                 "Compass Bearing Across Seasonal States")) + 
   theme_fivethirtyeight() + scale_fill_ptol()
