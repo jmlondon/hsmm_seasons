@@ -550,7 +550,7 @@ fit_data = list()
 for (id in unique(dd$deployid)) {
   this_fit <- fit_list[[paste0("n_states_",n_states)]][[id]]$fit
   this_data <- fit_list[[paste0("n_states_",n_states)]][[id]]$data
-  fit_data[[id]]$state <- this_fit$yhat
+  fit_data[[id]]$state <- predict(this_fit,this_data)$s
 }
 dd_fit <- bind_cols(dd,bind_rows(fit_data))
 dd_fit$state = as.factor(dd_fit$state)
