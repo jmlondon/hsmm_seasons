@@ -87,7 +87,7 @@ deployments <- kotzeb0912_locs %>%
 
 ## Methods and Analysis
 
-Between 2009 and 2012 seven adult bearded seals were captured and released with bio-logging devices that provide measures of movement, dive behavior, and hourly wet-dry proportions. The tags were deployed in June and July with deployment duration ranging from `r min(deployments$duration)` to `r max(deployments$duration)` days (median = `r median(deployments$duration)` days). Data from these deployments are available as an R data package and we will use these data to demonstrate the application of multivariate hidden semi-Markov models to identify seasonal states from real world telemetry data.
+Between 2009 and 2012 seven adult bearded seals were captured and released with bio-logging devices that provide measures of movement, dive behavior, and hourly wet-dry proportions. The tags were deployed in June and July with deployment duration ranging from `r format(min(deployments$duration),digits=2)` to `r format(max(deployments$duration), digits=2)` days (median = `r format(median(deployments$duration),digits=2)` days). Data from these deployments are available as an R data package and we will use these data to demonstrate the application of multivariate hidden semi-Markov models to identify seasonal states from real world telemetry data.
 
 The `kotzeb0912` R package contains telemetry data from 14 deployments on seven adult bearded seals. Each seal was deployed with two tags --- one adhered to the hair on the head of the animal and another attached to the flipper. The flipper attached tags were removed from the dataset for this analysis. All of the telemetry data was transmitted via the Argos satellite system and processed through the Wildlife Computers Data Portal. The location data consist of coordinates estimated via Argos along with the associated error ellipses as well as locations derived from the FastLoc GPS sensor on three of the deployments. Error for the FastLoc GPS coordinates was presumed to be a fixed value of 50 meters. Behavior data of interest for this analysis includes histograms of maximum dive depths within a 6 hour period and the percentage of each hour the tag was dry.
 
@@ -95,7 +95,7 @@ The `kotzeb0912` R package contains telemetry data from 14 deployments on seven 
 
 A key parameter in the evaluation of seasonal states will be movement --- specifically, the displacement in x and y coordinates at each time step. Location data from bio-logging devices are provided at irregular time steps and with varying error associated with each location estimate. The `crawl` R package was employed to model seal movement and estimate locations every 6 hours throughout the deployment. Prior to modeling the movement with `crawl`, the `argosfilter` package provided a course speed filter (vmax=3.5 m/s) to eliminate obvious outlier locations. Predicted locations are specified from the posterior mean and variance of the model track and coincide with the mid-point of the 6-hour dive behavior histograms. The lag difference in x and y coordinates provides a measure of northing and easting displacement at each time step. These values will form the basis for our xy-displacement multi-variate normal parameter in the model.
 
-The haul-out behavior timelines are provided as hourly percent-dry values and were grouped into 6-hour blocks that are centered on our 6-hourly predictions. Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, the number of dives across all bins less than 10 meters are summed. The expectation is this will accurately represent the number of foraging dives over a 6 hour period. Both of these behavioral data streams are subjet to periods of missing data. Since these deployments occurred over multiple years, the number of days since 1 April was used as a standard time scale. 
+The haul-out behavior timelines are provided as hourly percent-dry values and are grouped into 6-hour blocks that are centered on our 6-hourly predictions. Dive behavior data are transmitted as dive histograms that represent the distribution of dives across predetermined depth bins for a given 6-hour period. To simplify things, the number of dives across all bins less than 10 meters are summed. The expectation is this will accurately represent the number of foraging dives over a 6 hour period. Both of these behavioral data streams are subjet to periods of missing data. Since these deployments occurred over multiple years, the number of days since 1 April was used as a standard time scale. 
 
 ```{r merge-tel-data, include=FALSE}
 data("kotzeb0912_depths")
@@ -122,15 +122,15 @@ depths <- kotzeb0912_depths
 drytimes <- kotzeb0912_timelines
 
 locs <- locs %>% 
-  mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA)) %>% 
+  dplyr::mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA)) %>% 
   dplyr::filter(!is.na(species)) %>% arrange(deployid,date_time)
 
 depths <- depths %>% 
-  mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA)) %>% 
+  dplyr::mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA)) %>% 
   dplyr::filter(!is.na(species)) %>% arrange(deployid,date_time)
 
 drytimes <- drytimes %>% 
-  mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA)) %>% 
+  dplyr::mutate(species = ifelse(grepl("^EB.",deployid),'Bearded seal',NA)) %>% 
   dplyr::filter(!is.na(species)) %>% arrange(deployid,date_time)
 
 ```
@@ -145,7 +145,8 @@ cfilter <- do.call("c",cfilter)
 cfilter <- as.vector(cfilter)
 locs$filtered <- cfilter
 
-locs_data <- filter(locs,filtered == "not") %>% arrange(deployid,date_time) %>% 
+locs_data <- dplyr::filter(locs,filtered == "not") %>% 
+  dplyr::arrange(deployid,date_time) %>% 
   as.data.frame(.)
 
 ```
@@ -155,16 +156,18 @@ locs_data <- filter(locs,filtered == "not") %>% arrange(deployid,date_time) %>%
 data("kotzeb0912_gps")
 
 kotzeb0912_gps <- kotzeb0912_gps %>% 
-  mutate(species = "Bearded seal") %>% 
-  select(deployid,species,date_time,latitude,longitude) %>% 
-  filter(!is.na(latitude)) %>% 
-  mutate(error_semimajor_axis = 50,error_semiminor_axis = 50, error_ellipse_orientation = 1) 
+  dplyr::mutate(species = "Bearded seal") %>% 
+  dplyr::select(deployid,species,date_time,latitude,longitude) %>% 
+  dplyr::filter(!is.na(latitude)) %>% 
+  dplyr::mutate(error_semimajor_axis = 50,
+                error_semiminor_axis = 50, 
+                error_ellipse_orientation = 1) 
 
-locs_data <- locs_data %>% bind_rows(kotzeb0912_gps) %>% 
-  arrange(deployid,date_time)
+locs_data <- locs_data %>% dplyr::bind_rows(kotzeb0912_gps) %>% 
+  dplyr::arrange(deployid,date_time)
 
-locs_data_ellipse <- filter(locs_data,!is.na(error_semimajor_axis)) %>% 
-  arrange(deployid,date_time)
+locs_data_ellipse <- dplyr::filter(locs_data,!is.na(error_semimajor_axis)) %>% 
+  dplyr::arrange(deployid,date_time)
 
 ```
 
@@ -239,7 +242,7 @@ predData_ellipse <- foreach(i = 1:length(model_fits_ellipse)) %dopar% {
 predData_ellipse <- Filter(function(x) inherits(x,"crwPredict"),predData_ellipse)
 
 predData_ellipse <- dplyr::bind_rows(predData_ellipse) %>% 
-  filter(locType == "p")
+  dplyr::filter(locType == "p")
 
 predData <- predData_ellipse
 
@@ -250,15 +253,15 @@ predData$predTimes <- intToPOSIX(predData$TimeNum)
 
 ```{r load-timelines, include=FALSE}
 drytimes <- drytimes %>% 
-  filter(deployid %in% predData$deployid)
+  dplyr::filter(deployid %in% predData$deployid)
 ```
 
 ```{r create-6hr-groups, include=FALSE}
 ids <- unique(drytimes$deployid)
 timelineData <- foreach(i = 1:length(ids)) %dopar% {
   t_dat <- drytimes %>% 
-    filter(deployid == ids[i]) %>% 
-    arrange(deployid,date_time)
+    dplyr::filter(deployid == ids[i]) %>% 
+    dplyr::arrange(deployid,date_time)
   t_seq <- data.frame(date_time = seq(
     lubridate::floor_date(min(t_dat$date_time),"day"),
     lubridate::floor_date(max(t_dat$date_time),"day"),
@@ -271,11 +274,11 @@ timelineData <- foreach(i = 1:length(ids)) %dopar% {
 }
 
 timelineData <- dplyr::bind_rows(timelineData) %>% 
-  group_by(deployid,group) %>% 
-  summarise(percent_dry = mean(percent_dry,na.rm = TRUE),
+  dplyr::group_by(deployid,group) %>% 
+  dplyr::summarise(percent_dry = mean(percent_dry,na.rm = TRUE),
             date_time = ceiling_date(median(date_time),"hour")) %>% 
-  select(deployid,date_time,percent_dry) %>% 
-  filter(!is.nan(percent_dry))
+  dplyr::select(deployid,date_time,percent_dry) %>% 
+  dplyr::filter(!is.nan(percent_dry))
 ```
 
 ```{r merge-timeline-with-locs, include=FALSE}
@@ -284,32 +287,32 @@ predData <- dplyr::left_join(predData,
                               by = c("predTimes" = "date_time", 
                                      "deployid")) %>%
   tbl_df() %>%
-  select(deployid,species,predTimes,mu.x,mu.y,percent_dry) %>% 
-  arrange(deployid, predTimes) %>% 
-  rename(date_time = predTimes)
+  dplyr::select(deployid,species,predTimes,mu.x,mu.y,percent_dry) %>% 
+  dplyr::arrange(deployid, predTimes) %>% 
+  dplyr::rename(date_time = predTimes)
 ```
 
 
 ```{r load-dive-depths, include=FALSE}
 
 diveData <- depths %>% 
-  filter(bin != "bin1") %>% 
-  mutate(date_time = date_time + hours(3)) %>% 
-  group_by(deployid,date_time) %>% 
-  summarise(num_dives = sum(num_dives,na.rm = TRUE)) %>% 
+  dplyr::filter(bin != "bin1") %>% 
+  dplyr::mutate(date_time = date_time + hours(3)) %>% 
+  dplyr::group_by(deployid,date_time) %>% 
+  dplyr::summarise(num_dives = sum(num_dives,na.rm = TRUE)) %>% 
   ungroup()
 
 predData <- dplyr::left_join(predData,diveData) %>% 
-  arrange(deployid,date_time) 
+  dplyr::arrange(deployid,date_time) 
 ```
 
 ```{r xy-displacement, include=FALSE}
 predData <- predData %>% 
-  group_by(deployid) %>% 
-  mutate(x_disp = order_by(date_time, mu.x - lag(mu.x)), 
+  dplyr::group_by(deployid) %>% 
+  dplyr::mutate(x_disp = order_by(date_time, mu.x - lag(mu.x)), 
          y_disp = order_by(date_time, mu.y - lag(mu.y))
   ) %>% 
-  filter(!is.na(x_disp) | !is.na(y_disp)) %>% 
+  dplyr::filter(!is.na(x_disp) | !is.na(y_disp)) %>% 
   ungroup()
 ```
 
@@ -338,28 +341,31 @@ anglefun <- function(xx,yy,bearing = TRUE, as.deg = FALSE){
 }
 
 predData <- predData %>% rowwise() %>% 
-  mutate(bearing = anglefun(x_disp,y_disp,as.deg = TRUE)) %>% 
+  dplyr::mutate(bearing = anglefun(x_disp,y_disp,as.deg = TRUE)) %>% 
   ungroup()
 ```
 
 ```{r days-since-apr1, include=FALSE}
 id_apr1 <- predData %>% 
-  group_by(deployid) %>% summarise(start_yr = year(min(date_time))) %>% 
-  mutate(apr1 = lubridate::ymd(paste(start_yr,"04-01",sep = "-"))) %>% 
-  select(-start_yr) %>% ungroup()
-
-predData <- predData %>% left_join(id_apr1) %>% 
-  mutate(days_since_apr1 = as.numeric(difftime(date_time,apr1,units = "days")))
+  dplyr::group_by(deployid) %>% 
+  dplyr::summarise(start_yr = year(min(date_time))) %>% 
+  dplyr::mutate(apr1 = lubridate::ymd(paste(start_yr,"04-01",sep = "-"))) %>% 
+  dplyr::select(-start_yr) %>% ungroup()
 
 predData <- predData %>% 
-  mutate(ho_binary = ifelse(percent_dry >= 33.3,1,-1),
+  dplyr::left_join(id_apr1) %>% 
+  dplyr::mutate(days_since_apr1 = as.numeric(difftime(date_time,apr1,units = "days")))
+
+predData <- predData %>% 
+  dplyr::mutate(ho_binary = ifelse(percent_dry >= 33.3,1,-1),
          y_disp = ifelse(abs(y_disp) > 100000,NA,y_disp),
          x_disp = ifelse(abs(x_disp) > 100000,NA,x_disp),
          num_dives = ifelse(num_dives > 150,NA,num_dives)) 
 
 load('pep_age.rda')
 
-predData <- predData %>% left_join(pep_age)
+predData <- predData %>% 
+  dplyr::left_join(pep_age)
 
 save(predData,file = 'predData.rda')
 ```
@@ -403,7 +409,7 @@ p2
 `r fig_nums("plot-2")`
 
 ```{r plot-3, fig.height = 8, echo=FALSE}
-predData %>% mutate(direction = ifelse(
+predData %>% dplyr::mutate(direction = ifelse(
   y_disp >= 0, "north","south")) %>% 
 
 ggplot(aes(x = days_since_apr1, y = y_disp/1000)) +
@@ -416,7 +422,7 @@ ggplot(aes(x = days_since_apr1, y = y_disp/1000)) +
 `r fig_nums("plot-3")`
 
 ```{r plot-4, fig.height = 8,echo=FALSE}
-predData %>% mutate(direction = ifelse(
+predData %>% dplyr::mutate(direction = ifelse(
   y_disp >= 0, "west","east")) %>% 
 
 ggplot(aes(x = days_since_apr1, y = x_disp/1000)) +
@@ -430,7 +436,7 @@ ggplot(aes(x = days_since_apr1, y = x_disp/1000)) +
 
 ### Multivariate Hidden semi-Markov Model
 
-The R package `mhsmm` provides a framework for multi-variate hidden semi-Markov models. The package provides support for a few selected emmission distributions (Poisson, normal, and multi-variate normal). For dive behavior (i.e., number of dives below 10m), a Poisson emmission distribution was used and a multi-variate normal was used for the combined x-y displacement. A Bernouli distribution was used for haul-out status. Custom M-step functions were written to extend the package in support of the Bernouli as well as provide support for missing values in the Poisson and multi-variate normal.
+The R package `mhsmm` provides a framework for multi-variate hidden semi-Markov models. The package provides support for a few selected emmission distributions (Poisson, normal, and multi-variate normal) and is extentable to additional distributions. For dive behavior (i.e., number of dives below 10m), a Poisson emmission distribution was used and a multi-variate normal was used for the combined x-y displacement. A Bernouli distribution was used for haul-out status. Custom M-step functions were written to extend the package in support of the Bernouli as well as provide support for missing values in the Poisson and multi-variate normal.
 
 ```{r mshmm-start-eb, include = FALSE}
 library(mhsmm)
@@ -445,7 +451,7 @@ dd$x_disp_km = dd$x_disp/1000
 source("mhsmm_functions.R")
 ```
 
-In order to mimic the seasonal progression, we fixed the transition matrix with all superdiagonal entries set to 1 and the remaining entries set to 0. The transition matrix was not be re-estimated and the initial state was set to state 1. Initial values for the other parameters were generally set to a reasonable value and repeated across all states (table 1). A shifted Poisson distribution was chosen for the initial sojourn values and the lambda value was set to the number of time steps divided by the number of time steps. This initiates the model with a constant sojourn value distributed evenly across the deployment. The shift parameter was set to 0 for all states.
+In order to mimic the seasonal progression, we fixed the transition matrix with all superdiagonal entries set to 1 and the remaining entries set to 0. The transition matrix was not be re-estimated and the initial state was set to state 1. Initial values for the other parameters were generally set to a reasonable value and repeated across all states (table 1). A shifted Poisson distribution was chosen for the initial sojourn values and the lambda value was set to the number of time steps divided by the number of states. This initiates the model with a constant sojourn value distributed evenly across the deployment. The shift parameter was set to 0 for all states.
 
 ```{r, start-vals, include=FALSE}
 n_states = 5
@@ -533,8 +539,8 @@ mshmm_telem_fit <- function(dd, J) {
 
 fit_list <- list()
 for (id in unique(dd$deployid)) {
-    this_data <- dd %>% filter(deployid == id) %>% 
-    arrange(deployid, date_time)
+    this_data <- dd %>% dplyr::filter(deployid == id) %>% 
+    dplyr::arrange(deployid, date_time)
     message(id)
   for (J in 3:8) {
     fit_list[[paste("n_states",J,sep = "_")]][[id]] <- mshmm_telem_fit(dd = this_data,J)
@@ -562,7 +568,7 @@ extract_AIC_vals <- function(fit_list) {
       fit_data[[paste0(i + 2,id)]]$aic = fit_list[[i]][[id]]$aic
     }
   }
-  fit_data <- bind_rows(fit_data)
+  fit_data <- dplyr::bind_rows(fit_data)
   return(fit_data)
 }
 
@@ -627,7 +633,7 @@ for (id in unique(dd$deployid)) {
 }
 fit_predict <- dplyr::bind_rows(fit_predict)
 fit_predict <- dplyr::bind_cols(dd,fit_predict) %>% 
-  mutate(state = as.factor(state))
+  dplyr::mutate(state = as.factor(state))
 
 ```
 
@@ -651,10 +657,10 @@ We can also combine the state assignments across our tagged seals by taking the 
 
 ```{r plot-8, fig.height=4, echo=FALSE}
 combo <- fit_predict %>% 
-  group_by(days_since_apr1,state) %>% 
-  summarise(counter = n()) %>% 
-  group_by(days_since_apr1) %>% 
-  filter(counter == max(counter))
+  dplyr::group_by(days_since_apr1,state) %>% 
+  dplyr::summarise(counter = n()) %>% 
+  dplyr::group_by(days_since_apr1) %>% 
+  dplyr::filter(counter == max(counter))
 
 ggplot(data = combo,aes(x = days_since_apr1,y = " ")) + 
   geom_tile(aes(fill = state,alpha = counter/7)) +
