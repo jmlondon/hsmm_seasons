@@ -582,10 +582,12 @@ extract_sum_AIC <- function(fit_list) {
   return(sum_aics)
 }
 
-extract_sum_AIC(fit_list)
+# extract_sum_AIC(fit_list)
 aic_vals <- extract_AIC_vals(fit_list)
-aic_vals <- aic_vals %>% mutate(states = as.factor(states),
-                                id = as.factor(id))
+aic_vals$states <- as.factor(aic_vals$states)
+aic_vals$id <- as.factor(aic_vals$id)
+# aic_vals <- aic_vals %>% mutate(states = as.factor(states),
+#                                 id = as.factor(id))
 ```
 
 ```{r, plot-5-indiv-aic,fig.height = 4,echo=FALSE}
