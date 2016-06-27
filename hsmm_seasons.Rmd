@@ -660,7 +660,7 @@ ggplot(data = combo,aes(x = days_since_apr1,y = " ")) +
    theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank()) +
-  ggtitle("Combined Seasonal State Assignments Across 7 Adult Bearded Seals") + scale_fill_ptol(limits = levels(dd_fit$state),drop = TRUE)
+  ggtitle("Combined Seasonal State Assignments Across 7 Adult Bearded Seals") + scale_fill_ptol(limits = levels(fit_predict$state),drop = TRUE)
 ```
 
 Now that we have some seasonal states assigned, we can examine the distribution of various behaviors across those different states.
