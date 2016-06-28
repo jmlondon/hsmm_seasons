@@ -59,6 +59,7 @@ library(ggplot2)
 library(ggthemes)
 library(scales)
 library(pander)
+library(nPacMaps)
 ```
 
 ## Introduction
@@ -368,6 +369,40 @@ predData <- predData %>%
   dplyr::left_join(pep_age)
 
 save(predData,file = 'predData.rda')
+```
+
+```{r movement-map,echo=FALSE}
+data(alaska_dcw)
+data(russia_dcw)
+data(canada_dcw)
+
+ak<-spTransform(alaska_dcw,CRS("+init=epsg:3571"))
+rus<-spTransform(russia_dcw,CRS("+init=epsg:3571"))
+can<-spTransform(canada_dcw,CRS("+init=epsg:3571"))
+
+ak<-fortifi(ak,tol=1000,minarea=1000000)
+rus<-fortifi(rus,tol=1000,minarea=1000000)
+can<-fortifi(can,tol=1000,minarea=1000000)
+
+xlim<-range(predData$mu.x)
+ylim<-range(predData$mu.y)
+
+p <- ggplot() + 
+  geom_polygon(data=ak, aes(x=long, y=lat, group = group, id=id),fill="grey60" ) + 
+  geom_polygon(data=rus, aes(x=long, y=lat, group = group, id=id),fill="grey60" ) + 
+  geom_polygon(data=can, aes(x=long, y=lat, group = group, id=id),fill="grey60",colour="grey60" ) +
+  geom_point(data=predData,aes(x=mu.x,y=mu.y, color=deployid),
+             size=0.65,alpha=0.3) +
+  coord_fixed(xlim=xlim*1.1, ylim=ylim) + 
+  scale_x_continuous(labels=to_km()) + 
+  scale_y_continuous(labels=to_km()) +
+  xlab("easting (km)") + ylab("northing (km)") +
+  theme_fivethirtyeight() + scale_color_ptol() +
+  ggtitle("Predicted Movements of Bearded Seals 
+          in the Bering Sea and North Pacific") +
+  theme(axis.text.y = element_blank())
+p
+#ggsave("pres_data/fig-1.png",dpi=192)
 ```
 
 This series of five plots shows the raw, 'observed' parameter values that will go into the model: haul-out status, number of dives, y-displacement, and x-displacement.
@@ -698,7 +733,24 @@ ggplot(data = fit_predict) +
   theme_fivethirtyeight() + scale_fill_ptol()
 ```
 
+```{r spatial-dist-states, echo=FALSE}
+xlim<-range(fit_predict$mu.x)
+ylim<-range(fit_predict$mu.y)
 
+p <- ggplot() + 
+  geom_polygon(data=ak, aes(x=long, y=lat, group = group, id=id),fill="grey60" ) + 
+  geom_polygon(data=rus, aes(x=long, y=lat, group = group, id=id),fill="grey60" ) + 
+  geom_polygon(data=can, aes(x=long, y=lat, group = group, id=id),fill="grey60",colour="grey60" ) +
+  geom_point(data=fit_predict,aes(x=mu.x,y=mu.y,colour=state),size=1.75,alpha=0.4) +
+  coord_fixed(xlim=xlim*1.1, ylim=ylim) + 
+  scale_x_continuous(labels=to_km()) + 
+  scale_y_continuous(labels=to_km()) + facet_wrap(~state,nrow=1) +
+  xlab("easting (km)") + ylab("northing (km)") +
+  theme_fivethirtyeight() + theme(axis.text.y=element_text(angle=90)) +
+  ggtitle("Predicted Movements of Bearded Seals \n by Assigned Seasonal State")  + scale_color_ptol()
+p
+#ggsave("pres_data/fig-15.png",dpi=192)
+```
 
 ## Discussion
 
