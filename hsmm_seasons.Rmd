@@ -397,12 +397,10 @@ p <- ggplot() +
   scale_x_continuous(labels=to_km()) + 
   scale_y_continuous(labels=to_km()) +
   xlab("easting (km)") + ylab("northing (km)") +
-  theme_fivethirtyeight() + scale_color_ptol() +
-  ggtitle("Predicted Movements of Bearded Seals 
-          in the Bering Sea and North Pacific") +
+  theme_fivethirtyeight() + scale_color_ptol(guide=FALSE) +
   theme(axis.text.y = element_blank())
 p
-#ggsave("pres_data/fig-1.png",dpi=192)
+ggsave("pres_data/fig-1.png",height=6,units="in")
 ```
 
 This series of five plots shows the raw, 'observed' parameter values that will go into the model: haul-out status, number of dives, y-displacement, and x-displacement.
@@ -685,7 +683,11 @@ ggplot(data = fit_predict,aes(x=days_since_apr1,y = "")) +
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank()) +
   ggtitle("Seasonal State Assignments for 7 Adult Bearded Seals") +
-  theme_fivethirtyeight() + scale_fill_ptol()
+  theme_fivethirtyeight() + scale_fill_ptol() +
+  scale_x_continuous(breaks=c(91,197,306),
+                     labels=c("01 July","15 Oct","01 Feb")) +
+  theme(legend.position = "none")
+ggsave("pres_data/fig-7.png",width=8,height=6,units="in")
 ```
 
 We can also combine the state assignments across our tagged seals by taking the majority state for each time step. The color transparency is set to the proportion of animals represented by that majority state. Note that, some states may not be present in the combined graph.
@@ -697,40 +699,49 @@ combo <- fit_predict %>%
   dplyr::group_by(days_since_apr1) %>% 
   dplyr::filter(counter == max(counter))
 
-ggplot(data = combo,aes(x = days_since_apr1,y = " ")) + 
+p <- ggplot(data = combo,aes(x = days_since_apr1,y = " ")) + 
   geom_tile(aes(fill = state,alpha = counter/7)) +
   scale_alpha(guide = 'none') + theme_fivethirtyeight() +
    theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
         axis.title.y = element_blank()) +
-  ggtitle("Combined Seasonal State Assignments Across 7 Adult Bearded Seals") + scale_fill_ptol(limits = levels(fit_predict$state),drop = TRUE)
+  ggtitle("Combined Seasonal State Assignments") + scale_fill_ptol(limits = levels(fit_predict$state),drop = TRUE) +
+  scale_x_continuous(breaks=c(91,197,306),
+                     labels=c("01 July","15 Oct","01 Feb")) +
+  theme(legend.position = "none")
+p
+p <- p + theme(plot.title = element_blank())
+ggsave("pres_data/fig-8.png",width=8,height=2,units="in")
 ```
 
 Now that we have some seasonal states assigned, we can examine the distribution of various behaviors across those different states.
 
-```{r plot-9, echo=FALSE}
+```{r plot-9, echo=FALSE, fig.width=8}
 ggplot(data = fit_predict %>% filter(percent_dry > 3),aes(x = percent_dry)) +
   geom_density(aes(fill = state),size = 0) + facet_wrap(~state) +
   ggtitle("Distribution of Percent Dry Across Seasonal States") +
-  theme_fivethirtyeight() + scale_fill_ptol()
+  theme_fivethirtyeight() + scale_fill_ptol() + theme(legend.position="none")
+ggsave("pres_data/fig-9.png",width=8,height=4,units="in")
 ```
 
-```{r plot-10, echo=FALSE}
+```{r plot-10, echo=FALSE, fig.width=8}
 ggplot(data = fit_predict %>% filter(num_dives < 150),aes(x = num_dives)) +
   geom_density(aes(fill = state),size = 0) + facet_wrap(~state) +
   ggtitle("Distribution of Number of Dives Across Seasonal States") +
-  theme_fivethirtyeight() + scale_fill_ptol()
+  theme_fivethirtyeight() + scale_fill_ptol() + theme(legend.position="none")
+ggsave("pres_data/fig-10.png",width=8,height=4,units="in")
 ```
 
-```{r plot-11, fig.height=7, echo=FALSE}
+```{r plot-11, echo=FALSE, fig.width=8}
 ggplot(data = fit_predict) +
   geom_histogram(aes(x = bearing,y = ..density..,fill = state),binwidth = 12) +
   coord_polar() + 
-  scale_x_continuous(limits = c(0,360),breaks = seq(0,359, by = 45)) +
-  facet_wrap(~state,ncol = 3) +
-  ggtitle(paste("Distribution of Movement and \n",
+  scale_x_continuous(limits = c(0,360),breaks = seq(0,180, by = 45)) +
+  facet_wrap(~state,ncol = 5) +
+  ggtitle(paste0("Distribution of Movement and\n",
                 "Compass Bearing Across Seasonal States")) + 
-  theme_fivethirtyeight() + scale_fill_ptol()
+  theme_fivethirtyeight() + scale_fill_ptol() + theme(legend.position="none")
+ggsave("pres_data/fig-11.png",width=8,height=4,units="in")
 ```
 
 ```{r spatial-dist-states, echo=FALSE}
@@ -747,9 +758,10 @@ p <- ggplot() +
   scale_y_continuous(labels=to_km()) + facet_wrap(~state,nrow=1) +
   xlab("easting (km)") + ylab("northing (km)") +
   theme_fivethirtyeight() + theme(axis.text.y=element_text(angle=90)) +
-  ggtitle("Predicted Movements of Bearded Seals \n by Assigned Seasonal State")  + scale_color_ptol()
+  ggtitle("Predicted Movements of Bearded Seals\n by Assigned Seasonal State")  + scale_color_ptol() +
+  theme(legend.position = "none")
 p
-#ggsave("pres_data/fig-15.png",dpi=192)
+ggsave("pres_data/fig-12.png",width=8,height=4,units="in")
 ```
 
 ## Discussion
