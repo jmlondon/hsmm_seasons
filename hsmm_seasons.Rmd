@@ -394,13 +394,18 @@ p <- ggplot() +
   geom_point(data=predData,aes(x=mu.x,y=mu.y, color=deployid),
              size=0.65,alpha=0.3) +
   coord_fixed(xlim=xlim*1.1, ylim=ylim) + 
+  facet_wrap("deployid",ncol=7) +
   scale_x_continuous(labels=to_km()) + 
   scale_y_continuous(labels=to_km()) +
-  xlab("easting (km)") + ylab("northing (km)") +
   theme_fivethirtyeight() + scale_color_ptol(guide=FALSE) +
-  theme(axis.text.y = element_blank())
+  theme(axis.text.y = element_blank(),
+        strip.background = element_blank(),
+       strip.text.x = element_blank()) +
+  xlab("easting (km)") + ylab("northing (km)") +
+  ggtitle(paste0("Predicted Movements of 7 Adult Bearded Seals\n",
+                 "in the Bering and Chukchi Seas (2009 - 2013)"))
 p
-ggsave("pres_data/fig-1.png",height=6,units="in")
+ggsave("pres_data/fig-1.png",height=5,width=8,units="in")
 ```
 
 This series of five plots shows the raw, 'observed' parameter values that will go into the model: haul-out status, number of dives, y-displacement, and x-displacement.
@@ -740,7 +745,8 @@ ggplot(data = fit_predict) +
   facet_wrap(~state,ncol = 5) +
   ggtitle(paste0("Distribution of Movement and\n",
                 "Compass Bearing Across Seasonal States")) + 
-  theme_fivethirtyeight() + scale_fill_ptol() + theme(legend.position="none")
+  theme_fivethirtyeight() + scale_fill_ptol() + theme(legend.position="none",
+      axis.text.y=element_blank()) +
 ggsave("pres_data/fig-11.png",width=8,height=4,units="in")
 ```
 
