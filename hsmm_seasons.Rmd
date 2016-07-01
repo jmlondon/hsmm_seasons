@@ -59,7 +59,6 @@ library(ggplot2)
 library(ggthemes)
 library(scales)
 library(pander)
-library(nPacMaps)
 ```
 
 ## Introduction
@@ -420,13 +419,10 @@ p <- ggplot() +
              size=0.65,alpha=0.3) +
   coord_fixed(xlim=xlim*1.1, ylim=ylim) + 
   facet_wrap("deployid",ncol=7) +
-  scale_x_continuous(labels=to_km()) + 
-  scale_y_continuous(labels=to_km()) +
   theme_fivethirtyeight() + scale_color_ptol(guide=FALSE) +
-  theme(axis.text.y = element_blank(),
+  theme(axis.text = element_blank(),
         strip.background = element_blank(),
        strip.text.x = element_blank()) +
-  xlab("easting (km)") + ylab("northing (km)") +
   ggtitle(paste0("Predicted Movements of 7 Adult Bearded Seals\n",
                  "in the Bering and Chukchi Seas (2009 - 2013)"))
 p
@@ -789,12 +785,10 @@ p <- ggplot() +
                fill="grey60") +
   geom_point(data=fit_predict,aes(x=mu.x,y=mu.y,colour=state),size=1.75,alpha=0.4) +
   coord_fixed(xlim=xlim*1.1, ylim=ylim) + 
-  scale_x_continuous(labels=to_km()) + 
-  scale_y_continuous(labels=to_km()) + facet_wrap(~state,nrow=1) +
-  xlab("easting (km)") + ylab("northing (km)") +
+  facet_wrap(~state,nrow=1) +
   theme_fivethirtyeight() + theme(axis.text.y=element_text(angle=90)) +
   ggtitle("Predicted Movements of Bearded Seals\n by Assigned Seasonal State")  + scale_color_ptol() +
-  theme(legend.position = "none")
+  theme(legend.position = "none", axis.text= element_blank())
 p
 #ggsave("pres_data/fig-12.png",width=8,height=4,units="in")
 ```
