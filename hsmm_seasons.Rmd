@@ -372,25 +372,50 @@ save(predData,file = 'predData.rda')
 ```
 
 ```{r movement-map,echo=FALSE}
-data(alaska_dcw)
-data(russia_dcw)
-data(canada_dcw)
+#data(alaska_dcw)
+#data(russia_dcw)
+#data(canada_dcw)
 
-ak<-spTransform(alaska_dcw,CRS("+init=epsg:3571"))
-rus<-spTransform(russia_dcw,CRS("+init=epsg:3571"))
-can<-spTransform(canada_dcw,CRS("+init=epsg:3571"))
+# map_data <- readOGR('map-data/',
+#                     'ne_10m_admin_1_states_provinces')
+# 
+# ak<-spTransform(subset(map_data,name=='Alaska'),CRS("+init=epsg:3571"))
+# rus<-spTransform(subset(map_data,admin=='Russia'),
+#                  CRS("+init=epsg:3571"))
+# can<-spTransform(subset(map_data,admin=='Canada'),CRS("+init=epsg:3571"))
+# 
+# 
+# ak<-ggplot2::fortify(ak)
+# rus<-ggplot2::fortify(rus)
+# can<-ggplot2::fortify(can)
 
-ak<-fortifi(ak,tol=1000,minarea=1000000)
-rus<-fortifi(rus,tol=1000,minarea=1000000)
-can<-fortifi(can,tol=1000,minarea=1000000)
+library(maptools)
+
+# we don't want to store this map data in git, but also want to make sure # Travis can get it
+if (!file.exists("map-data/gshhg-bin-2.3.5")) {
+  tmp <- tempfile(fileext = ".zip")
+  download.file("ftp://ftp.soest.hawaii.edu/gshhg/gshhg-bin-2.3.5.zip", tmp)
+  unzip(tmp, exdir = "map-data/gshhg-bin-2.3.5")
+  unlink(tmp)
+}
+
+xlims <- c(180-50,180+50)
+ylims <- c(40,85)
+
+npac.h <- "map-data/gshhg-bin-2.3.5/gshhs_h.b"
+npac <- Rgshhs(npac.h, xlim=xlims, ylim=ylims, 
+               level=1, checkPolygons = TRUE, shift=TRUE)
+
+npac <- spTransform(npac$SP,CRS("+init=epsg:3571"))
+npac.fort <- fortify(npac)
 
 xlim<-range(predData$mu.x)
 ylim<-range(predData$mu.y)
 
 p <- ggplot() + 
-  geom_polygon(data=ak, aes(x=long, y=lat, group = group, id=id),fill="grey60" ) + 
-  geom_polygon(data=rus, aes(x=long, y=lat, group = group, id=id),fill="grey60" ) + 
-  geom_polygon(data=can, aes(x=long, y=lat, group = group, id=id),fill="grey60",colour="grey60" ) +
+  geom_polygon(data=npac.fort,
+               aes(x=long,y=lat,group=group,id=id),
+               fill="grey60") +
   geom_point(data=predData,aes(x=mu.x,y=mu.y, color=deployid),
              size=0.65,alpha=0.3) +
   coord_fixed(xlim=xlim*1.1, ylim=ylim) + 
@@ -405,7 +430,7 @@ p <- ggplot() +
   ggtitle(paste0("Predicted Movements of 7 Adult Bearded Seals\n",
                  "in the Bering and Chukchi Seas (2009 - 2013)"))
 p
-ggsave("pres_data/fig-1.png",height=5,width=8,units="in")
+#ggsave("pres_data/fig-1.png",height=5,width=8,units="in")
 ```
 
 This series of five plots shows the raw, 'observed' parameter values that will go into the model: haul-out status, number of dives, y-displacement, and x-displacement.
@@ -598,12 +623,14 @@ We used AIC as a possible indicator of an optimal number of seasonal states. The
 ```{r, model-selection-aic,include=FALSE}
 
 extract_AIC_vals <- function(fit_list) {
-  fit_data <- list()
+  fit_data <- vector("list")
   for (i in 1:length(fit_list)) {
     for (id in names(fit_list[[i]])) {
-      fit_data[[paste0(i + 2,id)]]$id = id
-      fit_data[[paste0(i + 2,id)]]$states = i + 2
-      fit_data[[paste0(i + 2,id)]]$aic = fit_list[[i]][[id]]$aic
+      fit_data[[paste0(i + 2,id)]] <- dplyr::data_frame(
+      id = id,
+      states = i + 2,
+      aic = fit_list[[i]][[id]]$aic
+      )
     }
   }
   fit_data <- dplyr::bind_rows(fit_data)
@@ -667,7 +694,9 @@ fit_predict = list()
 for (id in unique(dd$deployid)) {
   this_fit <- fit_list[[paste0("n_states_",n_states)]][[id]]$fit
   this_data <- fit_list[[paste0("n_states_",n_states)]][[id]]$data
-  fit_predict[[id]]$state <- predict(this_fit,this_data)$s
+  fit_predict[[id]] <- data_frame(
+    state = predict(this_fit,this_data)$s
+  )
 }
 fit_predict <- dplyr::bind_rows(fit_predict)
 fit_predict <- dplyr::bind_cols(dd,fit_predict) %>% 
@@ -692,7 +721,7 @@ ggplot(data = fit_predict,aes(x=days_since_apr1,y = "")) +
   scale_x_continuous(breaks=c(91,197,306),
                      labels=c("01 July","15 Oct","01 Feb")) +
   theme(legend.position = "none")
-ggsave("pres_data/fig-7.png",width=8,height=6,units="in")
+#ggsave("pres_data/fig-7.png",width=8,height=6,units="in")
 ```
 
 We can also combine the state assignments across our tagged seals by taking the majority state for each time step. The color transparency is set to the proportion of animals represented by that majority state. Note that, some states may not be present in the combined graph.
@@ -716,7 +745,7 @@ p <- ggplot(data = combo,aes(x = days_since_apr1,y = " ")) +
   theme(legend.position = "none")
 p
 p <- p + theme(plot.title = element_blank())
-ggsave("pres_data/fig-8.png",width=8,height=2,units="in")
+#ggsave("pres_data/fig-8.png",width=8,height=2,units="in")
 ```
 
 Now that we have some seasonal states assigned, we can examine the distribution of various behaviors across those different states.
@@ -726,7 +755,7 @@ ggplot(data = fit_predict %>% filter(percent_dry > 3),aes(x = percent_dry)) +
   geom_density(aes(fill = state),size = 0) + facet_wrap(~state) +
   ggtitle("Distribution of Percent Dry Across Seasonal States") +
   theme_fivethirtyeight() + scale_fill_ptol() + theme(legend.position="none")
-ggsave("pres_data/fig-9.png",width=8,height=4,units="in")
+#ggsave("pres_data/fig-9.png",width=8,height=4,units="in")
 ```
 
 ```{r plot-10, echo=FALSE, fig.width=8}
@@ -734,7 +763,7 @@ ggplot(data = fit_predict %>% filter(num_dives < 150),aes(x = num_dives)) +
   geom_density(aes(fill = state),size = 0) + facet_wrap(~state) +
   ggtitle("Distribution of Number of Dives Across Seasonal States") +
   theme_fivethirtyeight() + scale_fill_ptol() + theme(legend.position="none")
-ggsave("pres_data/fig-10.png",width=8,height=4,units="in")
+#ggsave("pres_data/fig-10.png",width=8,height=4,units="in")
 ```
 
 ```{r plot-11, echo=FALSE, fig.width=8}
@@ -746,8 +775,8 @@ ggplot(data = fit_predict) +
   ggtitle(paste0("Distribution of Movement and\n",
                 "Compass Bearing Across Seasonal States")) + 
   theme_fivethirtyeight() + scale_fill_ptol() + theme(legend.position="none",
-      axis.text.y=element_blank()) +
-ggsave("pres_data/fig-11.png",width=8,height=4,units="in")
+      axis.text.y=element_blank())
+#ggsave("pres_data/fig-11.png",width=8,height=4,units="in")
 ```
 
 ```{r spatial-dist-states, echo=FALSE}
@@ -755,9 +784,9 @@ xlim<-range(fit_predict$mu.x)
 ylim<-range(fit_predict$mu.y)
 
 p <- ggplot() + 
-  geom_polygon(data=ak, aes(x=long, y=lat, group = group, id=id),fill="grey60" ) + 
-  geom_polygon(data=rus, aes(x=long, y=lat, group = group, id=id),fill="grey60" ) + 
-  geom_polygon(data=can, aes(x=long, y=lat, group = group, id=id),fill="grey60",colour="grey60" ) +
+  geom_polygon(data=npac.fort,
+               aes(x=long,y=lat,group=group,id=id),
+               fill="grey60") +
   geom_point(data=fit_predict,aes(x=mu.x,y=mu.y,colour=state),size=1.75,alpha=0.4) +
   coord_fixed(xlim=xlim*1.1, ylim=ylim) + 
   scale_x_continuous(labels=to_km()) + 
@@ -767,7 +796,7 @@ p <- ggplot() +
   ggtitle("Predicted Movements of Bearded Seals\n by Assigned Seasonal State")  + scale_color_ptol() +
   theme(legend.position = "none")
 p
-ggsave("pres_data/fig-12.png",width=8,height=4,units="in")
+#ggsave("pres_data/fig-12.png",width=8,height=4,units="in")
 ```
 
 ## Discussion
